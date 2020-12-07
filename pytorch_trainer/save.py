@@ -85,6 +85,10 @@ class CheckpointSaver(Saver):
         if self.subject.epoch_ind % self.step == 0:
             self._save()
 
+    def update_on_train_end(self):
+        """Saves a checkpoint."""
+        self._save()
+
     def _save(self):
         filename = self._pattern % self.subject.epoch_ind
         contents = {'epoch': self.subject.epoch_ind,
