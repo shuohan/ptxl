@@ -27,6 +27,9 @@ class Trainer(Subject):
     def epoch_ind(self):
         return self._epoch_ind + 1
 
+    def set_epoch_ind(self, ind):
+        self._epoch_ind = ind - 1
+
     def get_model_state_dict(self):
         """Returns the state_dict of the training model(s)."""
         raise NotImplementedError
