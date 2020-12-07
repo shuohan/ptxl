@@ -370,6 +370,10 @@ class ImageSaver(ThreadedSaver):
         if self.subject.epoch_ind % self.step == 0:
             self._save()
 
+    def update_on_train_end(self):
+        self._save()
+        super().update_on_train_end()
+
     def _save(self):
         for aind, attr in enumerate(self.attrs):
             batch = getattr(self.subject, attr)
