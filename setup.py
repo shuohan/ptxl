@@ -1,10 +1,6 @@
-from setuptools import setup, find_packages
-from glob import glob
-import subprocess
+from setuptools import setup
 
-scripts = glob('scripts/*')
-command = ['git', 'describe', '--tags']
-version = subprocess.check_output(command).decode().strip()
+version = '0.1.1'
 
 setup(name='pytorch-trainer',
       version=version,
@@ -12,5 +8,5 @@ setup(name='pytorch-trainer',
       author='Shuo Han',
       author_email='shan50@jhu.edu',
       scripts=scripts,
-      install_requires=['torch', 'torchvision'],
-      packages=find_packages(include=['pytorch_trainer']))
+      install_requires=['torch>=1.6.0'],
+      packages=['pytorch_trainer'])
