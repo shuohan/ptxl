@@ -7,6 +7,5 @@ setup(name='pytorch-trainer',
       description='PyTorch trainer',
       author='Shuo Han',
       author_email='shan50@jhu.edu',
-      scripts=scripts,
       install_requires=['torch>=1.6.0'],
       packages=['pytorch_trainer'])
