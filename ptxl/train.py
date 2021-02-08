@@ -151,7 +151,16 @@ class SimpleMixin:
 
     @property
     def output_cpu(self):
-        """Returns the network output as :class:`torch.Tensor` on CPU."""
+        """Returns the network output as :class:`torch.Tensor` on CPU.
+
+        Note:
+            :attr:`output_cpu` is only converted from GPU when it is ``None``.
+            This means that the buffer variable ``self._output_cpu`` should be
+            cleared out in each iteration. The benefit of this design is that
+            after back-propgation, this variable only need to be converted once
+            for access from multiple threads.
+
+        """
         if self._output_cpu is None:
             self._output_cpu = self._output_cuda.detach().cpu()
         return self._output_cpu
@@ -224,12 +233,12 @@ class SimpleTrainer(SimpleMixin, Trainer):
         for self._epoch_ind in range(self.num_epochs):
             self.notify_observers_on_epoch_start()
             for self._batch_ind, data in enumerate(self.dataloader):
+                self._empty() # NOTE: self.output_cpu is wrong without this
                 self._parse_input(data[0])
                 self._parse_truth(data[1])
                 self.notify_observers_on_batch_start()
                 self._train_on_batch()
                 self.notify_observers_on_batch_end()
-                self._empty()
             self.notify_observers_on_epoch_end()
         self.notify_observers_on_train_end()
 
@@ -266,12 +275,12 @@ class SimpleValidator(SimpleMixin, Validator):
             with torch.no_grad():
                 self.subject.net.eval() 
                 for self._batch_ind, data in enumerate(self.dataloader):
+                    self._empty() # NOTE: self.output_cpu is wrong without this
                     self._parse_input(data[0])
                     self._parse_truth(data[1])
                     self.notify_observers_on_batch_start()
                     self._validate_on_batch()
                     self.notify_observers_on_batch_end()
-                    self._empty()
             self.notify_observers_on_epoch_end()
 
     def _validate_on_batch(self):

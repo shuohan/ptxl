@@ -182,9 +182,10 @@ class SaveImage:
         raise NotImeplementedError
 
     def _enlarge(self, image):
-        image = image[None, ...]
-        image = interpolate(image, scale_factor=self.zoom, mode='nearest')
-        image = image.squeeze(dim=0)
+        if self.zoom > 1:
+            image = image[None, ...]
+            image = interpolate(image, scale_factor=self.zoom, mode='nearest')
+            image = image.squeeze(dim=0)
         return image
 
 
@@ -197,7 +198,7 @@ class SaveNifti(SaveImage):
         Path(filename).parent.mkdir(parents=True, exist_ok=True)
         if not filename.endswith('.nii') and not filename.endswith('.nii.gz'):
             filename = filename + '.nii.gz'
-        image = self._enlarge(image).squeeze().numpy()
+        image = self._enlarge(image).numpy()
         obj = nib.Nifti1Image(image, np.eye(4))
         obj.to_filename(filename)
 
