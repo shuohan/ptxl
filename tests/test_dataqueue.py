@@ -2,8 +2,8 @@
 
 import numpy as np
 
-from pytorch_trainer.log import DataQueue_, DataQueue
-from pytorch_trainer.observer import Subject
+from ptxl.log import DataQueue_, DataQueue
+from ptxl.observer import Subject
 
 
 class _Subject(Subject):

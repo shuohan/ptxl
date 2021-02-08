@@ -5,11 +5,11 @@ import nibabel as nib
 from torch.utils.data import DataLoader
 from pathlib import Path
 
-from pytorch_trainer.train import SimpleTrainer, SimpleValidator
-from pytorch_trainer.train import SimpleEvaluator
-from pytorch_trainer.save import CheckpointSaver, ImageSaver
-from pytorch_trainer.observer import Observer
-from pytorch_trainer.utils import NamedData
+from ptxl.train import SimpleTrainer, SimpleValidator
+from ptxl.train import SimpleEvaluator
+from ptxl.save import CheckpointSaver, ImageSaver
+from ptxl.observer import Observer
+from ptxl.utils import NamedData
 
 
 class Dataset:
@@ -97,7 +97,7 @@ def test_train_and_save():
         dirname = 'results_save/train/epoch-2/batch-%d' % batch_ind
         for sample_ind in [1, 2, 3, 4]:
             ind = (batch_ind - 1) * 4 + sample_ind - 1
-            for suffix in ['truth_cpu_y_%d', 'input_cpu_x_%d', 'output_cpu']:
+            for suffix in ['truth-cpu_y_%d', 'input-cpu_x_%d', 'output-cpu']:
                 if '%' in suffix:
                     suffix = suffix % ind
                 filename = 'sample-%d_%s.nii.gz' % (sample_ind, suffix)
@@ -107,25 +107,25 @@ def test_train_and_save():
     assert trainer.loss == -20300
 
     image = nib.load(Path('results_save/train/epoch-2/batch-1',
-                          'sample-1_input_cpu_x_0.nii.gz')).get_fdata()
+                          'sample-1_input-cpu_x_0.nii.gz')).get_fdata()
     assert image.tolist() == [0]
     image = nib.load(Path('results_save/train/epoch-2/batch-1',
-                          'sample-3_truth_cpu_y_2.nii.gz')).get_fdata()
+                          'sample-3_truth-cpu_y_2.nii.gz')).get_fdata()
     assert image.tolist() == [3]
 
     image = nib.load(Path('results_save/train/epoch-2/batch-1',
-                          'sample-2_input_cpu_x_1.nii.gz')).get_fdata()
+                          'sample-2_input-cpu_x_1.nii.gz')).get_fdata()
     assert image.tolist() == [1]
     image = nib.load(Path('results_save/train/epoch-2/batch-2',
-                          'sample-2_truth_cpu_y_5.nii.gz')).get_fdata()
+                          'sample-2_truth-cpu_y_5.nii.gz')).get_fdata()
     assert image.tolist() == [6]
 
     image = nib.load(Path('results_save/train/epoch-2/batch-3',
-                          'sample-4_output_cpu.nii.gz')).get_fdata()
+                          'sample-4_output-cpu.nii.gz')).get_fdata()
     assert image.tolist() == [-2926, -2926]
 
     image = nib.load(Path('results_save/valid/epoch-2/batch-4',
-                          'sample-1_output_cpu.nii.gz')).get_fdata()
+                          'sample-1_output-cpu.nii.gz')).get_fdata()
     assert image.tolist() == [-3582, -3582]
     print('successful')
 

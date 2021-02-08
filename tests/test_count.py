@@ -1,7 +1,7 @@
 #!/usr/bin/env python
 
 import torch
-from pytorch_trainer.utils import count_trainable_params
+from ptxl.utils import count_trainable_params
 
 
 def test_count():
