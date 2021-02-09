@@ -5,6 +5,7 @@ import numpy as np
 from pathlib import Path
 import warnings
 from collections.abc import Iterable
+from tqdm import trange
 
 from .observer import Observer, SubjectObserver
 
@@ -362,3 +363,44 @@ class BatchEpochPrinter(EpochPrinter):
                 self._batch_pattern % self.subject.batch_ind]
         line = self._append_data(line, attrs, data)
         print(', '.join(line), flush=True)
+
+
+class TqdmEpochPrinter(Printer):
+    """Uses tqdm to Print training or validation progress at the each epoch end.
+
+    """
+    def update_on_train_start(self):
+        self._epoch_pbar = trange(self.subject.num_epochs)
+
+    def update_on_epoch_end(self):
+        """Updates the tqdm progress bar."""
+        attrs = self.subject.abbrs
+        data = self.subject.mean.tolist()
+        desc = ', '.join(self._append_data([], attrs, data))
+        self._epoch_pbar.set_description(desc)
+        self._epoch_pbar.update()
+
+    def update_on_train_end(self):
+        """Closes the tqdm progress bar."""
+        self._epoch_pbar.close()
+
+
+class TqdmBatchEpochPrinter(TqdmEpochPrinter):
+    """Uses tqdm to Print progress at the end of each mini-batch and epoch.
+
+    """
+    def update_on_train_start(self):
+        super().update_on_train_start()
+        self._batch_pbar = trange(self.subject.num_batches, leave=False)
+
+    def update_on_batch_end(self):
+        """Updates the tqdm progress bar for mini-batches."""
+        attrs = self.subject.abbrs
+        data = self.subject.current.tolist()
+        desc = ', '.join(self._append_data([], attrs, data))
+        self._batch_pbar.set_description(desc)
+
+    def update_on_train_end(self):
+        """Closes the tqdm progress bars."""
+        self._batch_pbar.close()
+        super().update_on_train_end()
