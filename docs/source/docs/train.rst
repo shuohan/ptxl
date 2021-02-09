@@ -1,6 +1,6 @@
 Train
 #####
 
-.. automodule:: pytorch_trainer.train
+.. automodule:: ptxl.train
    :members:
    :show-inheritance:

@@ -1,6 +1,6 @@
 Log
 ###
 
-.. automodule:: pytorch_trainer.log
+.. automodule:: ptxl.log
    :members:
    :show-inheritance:

@@ -12,7 +12,7 @@ class Trainer(Subject):
 
     Args:
         num_epochs (int): The number of epochs.
-    
+
     """
     def __init__(self, num_epochs, *args, **kwargs):
         super().__init__(*args, **kwargs)
@@ -26,6 +26,24 @@ class Trainer(Subject):
     @property
     def epoch_ind(self):
         return self._epoch_ind + 1
+
+    def train(self, start_ind):
+        """Trains the network.
+
+        Args:
+            start_ind (int): The start epoch index.
+
+        """
+        raise NotImplementedError
+
+    def cont(self, ckpt):
+        """Continues training.
+
+        Args:
+            ckpt (dict): The checkpoint loaded with ``torch.load``.
+
+        """
+        raise NotImplementedError
 
     def get_model_state_dict(self):
         """Returns the state_dict of the training model(s)."""
@@ -41,7 +59,7 @@ class Validator(SubjectObserver):
 
     Attributes:
         step (int): Validate the network every this number of epochs.
-    
+
     """
     def __init__(self, step):
         super().__init__()
@@ -76,7 +94,7 @@ class Evaluator(Observer):
         eval_funcs (dict): The :class:`str` name and function pairs of the
             evaluation functions. The functions should be defined as
             ``func(output, truth)``.
-    
+
     """
     def __init__(self, eval_funcs):
         super().__init__()
@@ -95,7 +113,7 @@ class SimpleMixin:
 
     Attributes:
         dataloader (torch.utils.data.DataLoader): Yields training data.
-    
+
     """
     def __init__(self, *args, dataloader=None, **kwargs):
         super().__init__(*args, **kwargs)
@@ -136,7 +154,7 @@ class SimpleMixin:
     @property
     def input_cpu(self):
         """Returns the network input as :class:`torch.Tensor` on CPU."""
-        input_cpu = self._input_cpu 
+        input_cpu = self._input_cpu
         if self._input_names is not None:
             input_cpu = NamedData(self._input_names, input_cpu)
         return input_cpu
@@ -148,7 +166,16 @@ class SimpleMixin:
 
     @property
     def output_cpu(self):
-        """Returns the network output as :class:`torch.Tensor` on CPU."""
+        """Returns the network output as :class:`torch.Tensor` on CPU.
+
+        Note:
+            :attr:`output_cpu` is only converted from GPU when it is ``None``.
+            This means that the buffer variable ``self._output_cpu`` should be
+            cleared out in each iteration. The benefit of this design is that
+            after back-propgation, this variable only need to be converted once
+            for access from multiple threads.
+
+        """
         if self._output_cpu is None:
             self._output_cpu = self._output_cuda.detach().cpu()
         return self._output_cpu
@@ -161,7 +188,7 @@ class SimpleMixin:
     @property
     def truth_cpu(self):
         """Returns the network truth as :class:`torch.Tensor` on CPU."""
-        truth_cpu = self._truth_cpu 
+        truth_cpu = self._truth_cpu
         if self._truth_names is not None:
             truth_cpu = NamedData(self._truth_names, truth_cpu)
         return truth_cpu
@@ -215,10 +242,9 @@ class SimpleTrainer(SimpleMixin, Trainer):
         self.optim = optim
         self.loss_func = loss_func
 
-    def train(self):
-        """Trains the network."""
+    def train(self, start_ind=0):
         self.notify_observers_on_train_start()
-        for self._epoch_ind in range(self.num_epochs):
+        for self._epoch_ind in range(start_ind, self.num_epochs):
             self.notify_observers_on_epoch_start()
             for self._batch_ind, data in enumerate(self.dataloader):
                 self._parse_input(data[0])
@@ -226,13 +252,18 @@ class SimpleTrainer(SimpleMixin, Trainer):
                 self.notify_observers_on_batch_start()
                 self._train_on_batch()
                 self.notify_observers_on_batch_end()
-                self._empty()
+                self._empty() # NOTE: self.output_cpu is wrong without this
             self.notify_observers_on_epoch_end()
         self.notify_observers_on_train_end()
 
+    def cont(self, ckpt):
+        self.net.load_state_dict(ckpt['model_state_dict'])
+        self.optim.load_state_dict(ckpt['optim_state_dict'])
+        self.train(start_ind=ckpt['epoch'])
+
     def _train_on_batch(self):
         """Trains the network on each mini-batch.
-        
+
         """
         self.optim.zero_grad()
         self._output_cuda = self.net(self._input_cuda)
@@ -261,14 +292,14 @@ class SimpleValidator(SimpleMixin, Validator):
         if (self.epoch_ind % self.step) == 0:
             self.notify_observers_on_epoch_start()
             with torch.no_grad():
-                self.subject.net.eval() 
+                self.subject.net.eval()
                 for self._batch_ind, data in enumerate(self.dataloader):
                     self._parse_input(data[0])
                     self._parse_truth(data[1])
                     self.notify_observers_on_batch_start()
                     self._validate_on_batch()
                     self.notify_observers_on_batch_end()
-                    self._empty()
+                    self._empty() # NOTE: self.output_cpu is wrong without this
             self.notify_observers_on_epoch_end()
 
     def _validate_on_batch(self):
@@ -279,7 +310,7 @@ class SimpleValidator(SimpleMixin, Validator):
 
 class SimpleEvaluator(Evaluator):
     """Evaluates an algorithm with one network, optim, and loss function.
-    
+
     """
     def _check_subject_type(self, subject):
         assert isinstance(subject, SimpleValidator) \

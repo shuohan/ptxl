@@ -20,14 +20,17 @@ from .utils import NamedData
 class Saver(Observer):
     """An abstract class to save the training progress.
 
-    Args:
+    Attributes:
         dirname (str or pathlib.Path): The directory to save results.
+        step (int): Save every this number of epochs. Do not save if
+            :attr:`step` is less or equal to 0.
         save_init (bool): Save before any weight update.
 
     """
-    def __init__(self, dirname, save_init=False):
+    def __init__(self, dirname, step=0, save_init=False):
         super().__init__()
         self.dirname = Path(dirname)
+        self.step = step
         self.save_init = save_init
 
     def update_on_train_start(self):
@@ -39,13 +42,22 @@ class Saver(Observer):
         """Implement save in this function."""
         raise NotImplementedError
 
+    def _need_to_save(self):
+        """Tests whether need to save at the current epoch."""
+        if self.step > 0:
+            rule1 = self.subject.epoch_ind % self.step == 0
+            rule2 = self.subject.epoch_ind == self.subject.num_epochs
+            return rule1 or rule2
+        else:
+            return False
+
 
 class ThreadedSaver(Saver):
     """Saves with threads.
 
     """
-    def __init__(self, dirname, save_init=False):
-        super().__init__(dirname, save_init)
+    def __init__(self, dirname, step=0, save_init=False):
+        super().__init__(dirname, step=step, save_init=save_init)
         self.queue = Queue()
         self._thread = self._init_thread()
 
@@ -54,38 +66,38 @@ class ThreadedSaver(Saver):
 
     def update_on_train_start(self):
         super().update_on_train_start()
-        self._thread.start()
+        if self.step > 0:
+            self._thread.start()
 
     def update_on_train_end(self):
-        self.queue.put(None)
-        self._thread.join()
+        if self.step > 0:
+            self.queue.put(None)
+            self._thread.join()
 
 
 class CheckpointSaver(Saver):
     """Saves model periodically.
 
     Attributes:
-        step (int): Save a checkpoint every this number of epochs.
         kwargs (dict): The other stuff to save.
 
     """
-    def __init__(self, dirname, step=100, save_init=False, **kwargs):
-        super().__init__(dirname, save_init)
-        self.step = step
+    def __init__(self, dirname, step=0, save_init=False, **kwargs):
+        super().__init__(dirname, step=step, save_init=save_init)
         self.kwargs = kwargs
 
     def update_on_train_start(self):
-        self.dirname.mkdir(parents=True, exist_ok=True)
         pattern = 'epoch-%%0%dd.pt' % len(str(self.subject.num_epochs))
         self._pattern = str(self.dirname.joinpath(pattern))
         super().update_on_train_start()
 
     def update_on_epoch_end(self):
         """Saves a checkpoint."""
-        if self.subject.epoch_ind % self.step == 0:
+        if self._need_to_save():
             self._save()
 
     def _save(self):
+        self.dirname.mkdir(parents=True, exist_ok=True)
         filename = self._pattern % self.subject.epoch_ind
         contents = {'epoch': self.subject.epoch_ind,
                     'model_state_dict': self.subject.get_model_state_dict(),
@@ -178,9 +190,10 @@ class SaveImage:
         raise NotImeplementedError
 
     def _enlarge(self, image):
-        image = image[None, ...]
-        image = interpolate(image, scale_factor=self.zoom, mode='nearest')
-        image = image.squeeze(dim=0)
+        if self.zoom > 1:
+            image = image[None, ...]
+            image = interpolate(image, scale_factor=self.zoom, mode='nearest')
+            image = image.squeeze(dim=0)
         return image
 
 
@@ -193,7 +206,7 @@ class SaveNifti(SaveImage):
         Path(filename).parent.mkdir(parents=True, exist_ok=True)
         if not filename.endswith('.nii') and not filename.endswith('.nii.gz'):
             filename = filename + '.nii.gz'
-        image = self._enlarge(image).squeeze().numpy()
+        image = self._enlarge(image).numpy()
         obj = nib.Nifti1Image(image, np.eye(4))
         obj.to_filename(filename)
 
@@ -207,7 +220,7 @@ class SavePngNorm(SaveImage):
         Path(filename).parent.mkdir(parents=True, exist_ok=True)
         if not filename.endswith('.png'):
             filename = filename + '.png'
-        image = self._enlarge(image).squeeze().numpy()
+        image = self._enlarge(image).numpy().squeeze()
         image = (image - np.min(image)) / (np.max(image) - np.min(image)) * 255
         obj = Image.fromarray(image.astype(np.uint8))
         obj.save(filename)
@@ -308,7 +321,6 @@ class ImageSaver(ThreadedSaver):
 
     Attributes:
         attrs (list[str]): The attribute names of :attr:`subject` to save.
-        step (int): Save images every this number of epochs.
         queue (queue.Queue): The queue to give data to its thread.
         save_type (str): The type of files to save the images to.
         image_type (str): The type of images to save.
@@ -319,28 +331,31 @@ class ImageSaver(ThreadedSaver):
             ``dirname/epoch-ind/batch-ind_sample-ind_name.ext``.
         zoom (int): Enlarge the image by this factor.
         ordered (bool): Order the saved images according to :attr:`attrs`.
+        create_save_image (function): The function to create an instance of
+            :class:`SaveImage`.
 
     """
     def __init__(self, dirname, attrs=[], step=10, save_type='nifti',
                  image_type='image', file_struct='epoch/batch/sample',
-                 save_init=False, zoom=1, ordered=False, prefix=''):
+                 save_init=False, zoom=1, ordered=False, prefix='',
+                 create_save_image=create_save_image):
         self.save_type = save_type
         self.image_type = image_type
         self.attrs = attrs
-        self.step = step
         self.file_struct = file_struct
         self.zoom = zoom
         self.ordered = ordered
         self.prefix = prefix
+        self.create_save_image = create_save_image
         self._pattern = None
-        super().__init__(dirname, save_init=save_init)
+        super().__init__(dirname, step=step, save_init=save_init)
 
     def update_on_train_start(self):
         self._pattern = self._get_filename_pattern()
         super().update_on_train_start()
 
     def _init_thread(self):
-        save = create_save_image(self.save_type, self.image_type, self.zoom)
+        save = self.create_save_image(self.save_type, self.image_type, self.zoom)
         return ImageThread(save, self.queue)
 
     def _get_filename_pattern(self):
@@ -367,7 +382,7 @@ class ImageSaver(ThreadedSaver):
         return str(Path(all, sub)) if as_path else '_'.join([all, sub])
 
     def update_on_batch_end(self):
-        if self.subject.epoch_ind % self.step == 0:
+        if self._need_to_save():
             self._save()
 
     def _save(self):

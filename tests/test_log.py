@@ -5,9 +5,9 @@ from io import StringIO
 from pathlib import Path
 import shutil
 
-from pytorch_trainer.log import DataQueue
-from pytorch_trainer.log import BatchEpochPrinter, EpochPrinter
-from pytorch_trainer.log import BatchLogger, EpochLogger
+from ptxl.log import DataQueue
+from ptxl.log import BatchEpochPrinter, EpochPrinter
+from ptxl.log import BatchLogger, EpochLogger
 
 from test_dataqueue import _Subject
 

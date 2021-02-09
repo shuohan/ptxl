@@ -1,6 +1,6 @@
 Observer
 ########
 
-.. automodule:: pytorch_trainer.observer
+.. automodule:: ptxl.observer
    :members:
    :show-inheritance:
