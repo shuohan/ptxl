@@ -1,6 +1,6 @@
 Save
 ####
 
-.. automodule:: pytorch_trainer.save
+.. automodule:: ptxl.save
    :members:
    :show-inheritance:

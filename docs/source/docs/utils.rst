@@ -1,6 +1,6 @@
 Utils
 #####
 
-.. automodule:: pytorch_trainer.utils
+.. automodule:: ptxl.utils
    :members:
    :show-inheritance:
