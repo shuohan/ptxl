@@ -1,5 +1,6 @@
 #!/usr/bin/env python
 
+import os
 import torch
 import nibabel as nib
 from torch.utils.data import DataLoader
@@ -32,6 +33,8 @@ class Check(Observer):
 
 
 def test_train_and_save():
+    os.system('rm -rf results_save')
+
     tmp = {'first': 1, 'second': [1, 2, 3]}
     ckpt_saver1 = CheckpointSaver('results_save/ckpt1', step=1, **tmp)
     ckpt_saver2 = CheckpointSaver('results_save/ckpt2', step=2, save_init=True)

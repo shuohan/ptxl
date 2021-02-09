@@ -57,7 +57,7 @@ class ThreadedSaver(Saver):
 
     """
     def __init__(self, dirname, step=0, save_init=False):
-        super().__init__(dirname, save_init)
+        super().__init__(dirname, step=step, save_init=save_init)
         self.queue = Queue()
         self._thread = self._init_thread()
 
@@ -83,8 +83,7 @@ class CheckpointSaver(Saver):
 
     """
     def __init__(self, dirname, step=0, save_init=False, **kwargs):
-        super().__init__(dirname, save_init)
-        self.step = step
+        super().__init__(dirname, step=step, save_init=save_init)
         self.kwargs = kwargs
 
     def update_on_train_start(self):
@@ -322,7 +321,6 @@ class ImageSaver(ThreadedSaver):
 
     Attributes:
         attrs (list[str]): The attribute names of :attr:`subject` to save.
-        step (int): Save images every this number of epochs.
         queue (queue.Queue): The queue to give data to its thread.
         save_type (str): The type of files to save the images to.
         image_type (str): The type of images to save.
@@ -344,14 +342,13 @@ class ImageSaver(ThreadedSaver):
         self.save_type = save_type
         self.image_type = image_type
         self.attrs = attrs
-        self.step = step
         self.file_struct = file_struct
         self.zoom = zoom
         self.ordered = ordered
         self.prefix = prefix
         self.create_save_image = create_save_image
         self._pattern = None
-        super().__init__(dirname, save_init=save_init)
+        super().__init__(dirname, step=step, save_init=save_init)
 
     def update_on_train_start(self):
         self._pattern = self._get_filename_pattern()

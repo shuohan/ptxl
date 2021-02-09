@@ -1,5 +1,6 @@
 #!/usr/bin/env python
 
+import os
 import torch
 import nibabel as nib
 from torch.utils.data import DataLoader
@@ -15,6 +16,9 @@ from test_train_and_save import Dataset
 
 
 def test_save_train_end():
+    os.system('rm -rf results_save_te2')
+    os.system('rm -rf results_save_te0')
+
     ckpt_saver = CheckpointSaver('results_save_te2/ckpt', step=2) 
     image_saver = ImageSaver('results_save_te2/images', step=2,
                              attrs=['input_cpu', 'output_cpu', 'truth_cpu'])
