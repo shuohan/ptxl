@@ -370,7 +370,7 @@ class TqdmEpochPrinter(Printer):
 
     """
     def update_on_train_start(self):
-        self._epoch_pbar = trange(self.subject.num_epochs)
+        self._epoch_pbar = trange(self.subject.num_epochs, dynamic_ncols=True)
 
     def update_on_epoch_end(self):
         """Updates the tqdm progress bar."""
@@ -391,7 +391,8 @@ class TqdmBatchEpochPrinter(TqdmEpochPrinter):
     """
     def update_on_train_start(self):
         super().update_on_train_start()
-        self._batch_pbar = trange(self.subject.num_batches, leave=False)
+        self._batch_pbar = trange(self.subject.num_batches, leave=False,
+                                  dynamic_ncols=True)
 
     def update_on_batch_end(self):
         """Updates the tqdm progress bar for mini-batches."""
