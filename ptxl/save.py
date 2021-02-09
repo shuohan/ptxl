@@ -220,7 +220,7 @@ class SavePngNorm(SaveImage):
         Path(filename).parent.mkdir(parents=True, exist_ok=True)
         if not filename.endswith('.png'):
             filename = filename + '.png'
-        image = self._enlarge(image).numpy()
+        image = self._enlarge(image).numpy().squeeze()
         image = (image - np.min(image)) / (np.max(image) - np.min(image)) * 255
         obj = Image.fromarray(image.astype(np.uint8))
         obj.save(filename)
@@ -235,7 +235,7 @@ class SavePng(SaveImage):
         Path(filename).parent.mkdir(parents=True, exist_ok=True)
         if not filename.endswith('.png'):
             filename = filename + '.png'
-        image = self._enlarge(image).numpy() * 255
+        image = self._enlarge(image).squeeze().numpy() * 255
         obj = Image.fromarray(image.astype(np.uint8))
         obj.save(filename)
 
