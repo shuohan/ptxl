@@ -4,7 +4,11 @@
 import torch
 import numpy as np
 import nibabel as nib
+
+import matplotlib
+matplotlib.use('Agg')
 import matplotlib.pyplot as plt
+
 from collections import namedtuple
 from pathlib import Path
 from queue import Queue
