@@ -1,6 +1,9 @@
 """Observer design pattern.
 
 """
+from .utils import NamedData
+
+
 class Observer:
     """Gets notified by :class:`Subject` to update its status.
 
@@ -75,6 +78,83 @@ class Subject:
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
         self._observers = list()
+
+        self._values = dict()
+        self._cpu_tensors = dict()
+        self._cuda_tensors = dict()
+
+    def get_value(self, value_attr):
+        """Returns a value (e.g., loss).
+
+        Args:
+            value_attr (str): The attribute name of the value to return.
+
+        Returns:
+            float: The value.
+
+        """
+        return self._values[value_attr].item()
+
+    def get_value_attrs(self):
+        """Returns the attribute names of all available values."""
+        return list(self._values.keys())
+
+    def get_cpu_tensor_attrs(self):
+        """Returns the attribute names of all available tensors on CPU."""
+        return list(self._cpu_tensors.keys())
+
+    def get_cuda_tensor_attrs(self):
+        """Returns the attribute names of all available tensors on CUDA."""
+        return list(self._cuda_tensors.keys())
+
+    def get_tensor(self, tensor_attr, device='cpu'):
+        """Returns a tensor on CPU or CUDA.
+
+        Args:
+            tensor_attr (str): The attribute name of the tensor to return.
+            device (str): The the device of the tensor to return. It can only be
+                "cpu" or "cuda".
+
+        Returns:
+            torch.Tensor/NamedData: The tensor.
+
+        """
+        if device == 'cpu':
+            return self._get_cpu_tensor(tensor_attr)
+        elif device == 'cuda':
+            return self._get_cuda_tensor(tensor_attr)
+        else:
+            raise RuntimeError('device can only be "cpu" or "cuda".')
+
+    def _get_cpu_tensor(self, tensor_attr):
+        if tensor_attr in self._cpu_tensors:
+            return self._cpu_tensors[tensor_attr]
+        else:
+            tensor = self._cuda_tensors[tensor_attr]
+            if isinstance(tensor, NamedData):
+                tensor = NamedData(tensor.name, tensor.data.detach().cpu())
+            return tensor
+
+    def _get_cuda_tensor(self, tensor_attr):
+        if tensor_attr in self._cuda_tensors:
+            return self._cuda_tensors[tensor_attr]
+        else:
+            tensor = self._cpu_tensors[tensor_attr]
+            if isinstance(tensor, NamedData):
+                tensor = NamedData(tensor.name, tensor.data.cuda())
+            return tensor
+
+    def _set_tensor_cpu(self, attr, tensor, name=None):
+        """Add tensor with attr and name into the cpu collection."""
+        if name is not None:
+            tensor = NamedData(name=name, data=tensor)
+        self._cpu_tensors[attr] = tensor
+
+    def _set_tensor_cuda(self, attr, tensor, name=None):
+        """Add tensor with attr and name into the cuda collection."""
+        if name is not None:
+            tensor = NamedData(name=name, data=tensor)
+        self._cuda_tensors[attr] = tensor
 
     def register(self, observer):
         """Registers an observer to get notified.

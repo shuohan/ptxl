@@ -154,9 +154,9 @@ class DataQueue(SubjectObserver):
 
     def update_on_batch_end(self):
         if isinstance(self.attrs, list):
-            value = [getattr(self.subject, n) for n in self.attrs]
+            value = [self.subject.get_value(n) for n in self.attrs]
         else:
-            value = getattr(self.subject, self.attrs)
+            value = self.subject.get_value(self.attrs)
         self.put(value)
         super().update_on_batch_end()
 
