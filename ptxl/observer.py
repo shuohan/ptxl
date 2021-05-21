@@ -80,8 +80,8 @@ class Subject:
         self._observers = list()
 
         self._values = dict()
-        self._cpu_tensors = dict()
-        self._cuda_tensors = dict()
+        self._tensors_cpu = dict()
+        self._tensors_cuda = dict()
 
     def get_value(self, value_attr):
         """Returns a value (e.g., loss).
@@ -101,11 +101,11 @@ class Subject:
 
     def get_cpu_tensor_attrs(self):
         """Returns the attribute names of all available tensors on CPU."""
-        return list(self._cpu_tensors.keys())
+        return list(self._tensors_cpu.keys())
 
     def get_cuda_tensor_attrs(self):
         """Returns the attribute names of all available tensors on CUDA."""
-        return list(self._cuda_tensors.keys())
+        return list(self._tensors_cuda.keys())
 
     def get_tensor(self, tensor_attr, device='cpu'):
         """Returns a tensor on CPU or CUDA.
@@ -127,19 +127,19 @@ class Subject:
             raise RuntimeError('device can only be "cpu" or "cuda".')
 
     def _get_cpu_tensor(self, tensor_attr):
-        if tensor_attr in self._cpu_tensors:
-            return self._cpu_tensors[tensor_attr]
+        if tensor_attr in self._tensors_cpu:
+            return self._tensors_cpu[tensor_attr]
         else:
-            tensor = self._cuda_tensors[tensor_attr]
+            tensor = self._tensors_cuda[tensor_attr]
             if isinstance(tensor, NamedData):
                 tensor = NamedData(tensor.name, tensor.data.detach().cpu())
             return tensor
 
     def _get_cuda_tensor(self, tensor_attr):
-        if tensor_attr in self._cuda_tensors:
-            return self._cuda_tensors[tensor_attr]
+        if tensor_attr in self._tensors_cuda:
+            return self._tensors_cuda[tensor_attr]
         else:
-            tensor = self._cpu_tensors[tensor_attr]
+            tensor = self._tensors_cpu[tensor_attr]
             if isinstance(tensor, NamedData):
                 tensor = NamedData(tensor.name, tensor.data.cuda())
             return tensor
@@ -148,13 +148,13 @@ class Subject:
         """Add tensor with attr and name into the cpu collection."""
         if name is not None:
             tensor = NamedData(name=name, data=tensor)
-        self._cpu_tensors[attr] = tensor
+        self._tensors_cpu[attr] = tensor
 
     def _set_tensor_cuda(self, attr, tensor, name=None):
         """Add tensor with attr and name into the cuda collection."""
         if name is not None:
             tensor = NamedData(name=name, data=tensor)
-        self._cuda_tensors[attr] = tensor
+        self._tensors_cuda[attr] = tensor
 
     def register(self, observer):
         """Registers an observer to get notified.
