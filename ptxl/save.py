@@ -391,7 +391,7 @@ class ImageSaver(ThreadedSaver):
 
     def _save(self):
         for aind, attr in enumerate(self.attrs):
-            batch = getattr(self.subject, attr)
+            batch = self.subject.get_tensor(attr, 'cpu')
             if isinstance(batch, NamedData):
                 for sind, (name, sample) in enumerate(zip(*batch)):
                     filename = self._get_filename(sind + 1, aind + 1, attr)
