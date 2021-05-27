@@ -52,18 +52,20 @@ class Counter(Counter_):
     def __init__(self, name, num):
         self._name = name
         self._num = num
-        self._index = 0
+        self._current_index = -1
+        self._next_index = 0
         self._template = self._get_template()
 
     def __iter__(self):
-        self._index = 0
+        self._current_index = -1
+        self._next_index = 0
         return self
 
     def __next__(self):
-        result = self._index
-        if result < self.num:
-            self._index += 1
-            return result
+        self._current_index = self._next_index
+        if self._current_index < self.num:
+            self._next_index += 1
+            return self._current_index
         else:
             raise StopIteration
 
@@ -80,7 +82,7 @@ class Counter(Counter_):
 
     @property
     def index(self):
-        return self._index
+        return self._current_index + 1
 
     @property
     def named_index(self):
