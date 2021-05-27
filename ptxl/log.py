@@ -66,16 +66,15 @@ class Logger(Observer):
         subject (DataQueue): The subject to extract data from.
 
     """
-    def __init__(self, filename):
+    def __init__(self, filename, attrs=[]):
         super().__init__()
         self.filename = filename
-        self.attrs = []
+        self.attrs = attrs
         self._writer = None
 
     def start(self):
         """Initializes the writer to log data."""
-        names = self._counter.name
-        fields = self._append_data(name, self.attrs)
+        fields = self._append_data(self._get_counter_name(), self.attrs)
         self._writer = Writer(self.filename, fields)
         self._writer.open()
 
@@ -84,10 +83,16 @@ class Logger(Observer):
         self._writer.close()
 
     def _update(self):
-        contents = self._counter.index
+        index = self._get_counter_index()
         values = self.contents.get_values(self.attrs)
-        contents = self._append_data(contents, values)
-        self._writer.write_line(contents)
+        line = self._append_data(index, values)
+        self._writer.write_line(line)
+
+    def _get_counter_name(self):
+        return self.contents.counter.name
+
+    def _get_counter_index(self):
+        return self.contents.counter.index
 
     def _append_data(self, data_list, data_elem):
         """Appends an element to a list.
@@ -114,20 +119,27 @@ class Printer(Observer):
         decimals (int): The number of decimals to print.
 
     """
-    def __init__(self, decimals=4):
+    def __init__(self, decimals=4, attrs=[]):
         super().__init__()
         self.decimals = decimals
-        self.attrs = []
+        self.attrs = attrs
 
     def _update(self):
-        num = self._counter.num
-        index = self._counter.named_index
-        num = [num] if not isinstance(num, Iterable) else index
-        index = [index] if not isinstance(index, Iterable) else index
-        index = ['/'.join([i.replace('-', ' '), n]) for i, n in zip(index, num)]
+        num = self._get_counter_num()
+        index = self._get_counter_index()
+        num = [num] if not isinstance(num, Iterable) else num
+        index = [index] if isinstance(index, str) else index
+        index = ['/'.join([ind.replace('-', ' '), str(n)])
+                 for ind, n in zip(index, num)]
         values = self.contents.get_values(self.attrs)
         line = self._append_data(index, self.attrs, values)
         print(', '.join(line), flush=True)
+
+    def _get_counter_index(self):
+        return self.contents.counter['batch'].named_index
+
+    def _get_counter_num(self):
+        return self.contents.counter['batch'].num
 
     def _create_epoch_pattern(self):
         """Creates the pattern to print epoch info."""
@@ -156,16 +168,23 @@ class TqdmPrinter(Printer):
 
     """
     def start(self):
-        num = self._counter.num
-        num = np.prod(num) if isinstance(num, Iterable) else num
+        num = self._get_counter_num_total()
         self._pbar = trange(num, dynamic_ncols=True, position=0)
         self._vbar = tqdm(bar_format='{desc}', dynamic_ncols=True, position=1)
+
+    def _get_counter_num(self):
+        return np.prod(self.contents.counter.num)
+
+    def _get_counter_index(self):
+        index = self.countents.counter.index
+        nums = self.countents.counter.num
+        return np.ravel_multi_index(tuple(index), tuple(nums))
 
     def _update(self):
         """Updates the tqdm progress bar."""
         values = self.contents.get_values(self.attrs)
         desc = ', '.join(self._append_data([], self.attrs, values))
-        self._pbar.n = self._counter.index
+        self._pbar.n = self._get_counter_index()
         self._vbar.set_description(desc)
         self._pbar.refresh()
         self._vbar.refresh()
@@ -182,11 +201,17 @@ class MultiTqdmPrinter(TqdmPrinter):
     """
     def start(self):
         super().update_on_train_start()
-        assert isinstance(self._counter.name, Iterable)
+        assert isinstance(self.contents.counter.name, Iterable)
         self._pbars = [trange(n, dynamic_ncols=True, position=i)
-                       for i, n in enumerate(self._counter.num)]
+                       for i, n in enumerate(self._get_counter_num)]
         self._vbar = tqdm(bar_format='{desc}', dynamic_ncols=True,
-                          position=len(self._counter.num))
+                          position=len(self.contents.counter))
+
+    def _get_counter_num(self):
+        return self.contents.counter.num
+
+    def _get_counter_index(self):
+        return self.countents.counter.index
 
     def _update(self):
         attrs = self.subject.abbrs
@@ -194,7 +219,7 @@ class MultiTqdmPrinter(TqdmPrinter):
         desc = ', '.join(self._append_data([], self.attrs, values))
         self._vbar.set_description(desc)
         self._vbar.refresh()
-        for pbar, index in zip(self._pbars, self._counter.index):
+        for pbar, index in zip(self._pbars, self._get_counter_index()):
             pbar.n = index
             pbar.refresh()
 

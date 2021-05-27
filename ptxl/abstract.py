@@ -30,6 +30,16 @@ class Contents:
         """Returns the state dict of the optimizer(s)."""
         return self.optim.state_dict()
 
+    def set_value(self, value_attr, value):
+        """Sets a value.
+
+        Args:
+            value_attr (str): The attribute name of this value.
+            value (float): The value to set.
+
+        """
+        self._values[value_attr] = value
+
     def get_value(self, value_attr):
         """Returns a value (e.g., loss).
 
@@ -116,24 +126,24 @@ class Contents:
 
     def set_tensor_cpu(self, attr, tensor, name=None):
         """Add tensor with attr and name into the cpu collection."""
-        if name is not None:
+        if name:
             tensor = NamedData(name=name, data=tensor)
         self._tensors_cpu[attr] = tensor
 
     def set_tensor_cuda(self, attr, tensor, name=None):
         """Add tensor with attr and name into the cuda collection."""
-        if name is not None:
+        if name:
             tensor = NamedData(name=name, data=tensor)
         self._tensors_cuda[attr] = tensor
 
-    def register(self, observer, counter_name='counter'):
+    def register(self, observer):
         """Registers an observer to get notified.
 
         Args:
             observer (Observer): The observer to register.
 
         """
-        observer.set_contents(self, getattr(self, counter_name))
+        observer.set_contents(self)
         self._observers.append(observer)
 
     def remove(self, observer):
@@ -174,10 +184,9 @@ class Observer:
         """The contents that is been observed."""
         return self._contents
 
-    def set_contents(self, contents, counter):
+    def set_contents(self, contents):
         self._check_contents_type(contents)
         self._contents = contents
-        self._counter = counter
 
     def _check_contents_type(self, contents):
         """Enforces the type of acceptable contents here."""

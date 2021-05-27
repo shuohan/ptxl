@@ -36,7 +36,6 @@ class Saver(Observer):
         self.dirname = Path(dirname)
         self.step = step
         self.save_init = save_init
-        assert self.step > 0
 
     def start(self):
         self.dirname.mkdir(parents=True, exist_ok=True)
@@ -48,8 +47,8 @@ class Saver(Observer):
         raise NotImplementedError
 
     def _need_to_update(self):
-        rule1 = self._counter.index % self.step == 0
-        rule2 = self._counter.has_reached_end()
+        rule1 = self.contents.counter['epoch'].index % self.step == 0
+        rule2 = self.contents.counter['epoch'].has_reached_end()
         return rule1 or rule2
 
 
@@ -86,12 +85,21 @@ class CheckpointSaver(Saver):
         self.kwargs = kwargs
 
     def _update(self):
-        filename = Path(self._counter.named_index).with_suffix('.pt')
-        contents = {self._counter.name: self._counter.index,
+        filename = Path(self.dirname, self._get_counter_index())
+        contents = {self._get_counter_name(): self._get_counter_index(),
                     'model_state_dict': self.contents.get_model_state_dict(),
                     'optim_state_dict': self.contents.get_optim_state_dict(),
                     **self.kwargs}
-        torch.save(contents, filename)
+        torch.save(contents, filename.with_suffix('.pt'))
+
+    def _get_counter_named_index(self):
+        return self.contents.counter['epoch'].named_index
+
+    def _get_counter_name(self):
+        return self.contents.counter['epoch'].name
+
+    def _get_counter_index(self):
+        return self.contents.counter['epoch'].index
 
 
 class SaveType(str, Enum):
@@ -330,36 +338,40 @@ class ImageSaver(ThreadedSaver):
         self.use_new_folder = use_new_folder
         super().__init__(dirname, step=step, save_init=save_init)
 
-    def start(self):
-        self._fn_template = self._get_filename_pattern()
-        super().start()
-
     def _init_thread(self):
         return ImageThread(self.save_image, self.queue)
 
     def _update(self):
         for aind, attr in enumerate(self.attrs):
             batch = self.contents.get_tensor(attr, 'cpu')
-            if isinstance(batch, NamedData):
+            if batch is None:
+                continue
+            elif isinstance(batch, NamedData):
+                num_samples = batch.data.shape[0]
+                print(batch.name)
                 for sind, (name, sample) in enumerate(zip(*batch)):
-                    filename = self._get_filename(sind + 1, aind + 1, attr)
-                    filename = '_'.join([filename, name])
-                    self.queue.put(NamedData(filename, sample))
+                    fn = self._get_filename(sind, aind, attr, num_samples)
+                    fn = '_'.join([fn, name])
+                    self.queue.put(NamedData(fn, sample))
             else:
+                num_samples = batch.shape[0]
                 for sind, sample in enumerate(batch):
-                    filename = self._get_filename(sind + 1, aind + 1, attr)
-                    self.queue.put(NamedData(filename, sample))
+                    fn = self._get_filename(sind, aind, attr, num_samples)
+                    self.queue.put(NamedData(fn, sample))
 
-    def _get_filename(self, sample_ind, attr_ind, attr):
-        dirname = self._counter.named_index
+    def _get_filename(self, sample_ind, attr_ind, attr, num_samples):
+        dirname = Path(self.dirname, self._get_counter_named_index())
         attr = attr.replace('_', '-')
-        sample_temp = 'sample-%%0%dd' % len(str(batch.shape[0]))
-        filename = sample_temp % (sample_ind)
+        sample_temp = 'sample-%%0%dd' % len(str())
+        filename = sample_temp % (sample_ind + 1)
         attr_temp = '%%0%dd' % len(str(len(self.attrs)))
-        attr_str = attr_temp % attr_ind
+        attr_str = attr_temp % (attr_ind + 1)
         filename = '_'.join([filename, attr_temp % attr_ind, attr])
         if self.use_new_folder:
             filename = str(Path(dirname, filename))
         else:
             filename = '_'.join([dirname, filename])
         return filename
+
+    def _get_counter_named_index(self):
+        return Path(*self.contents.counter.named_index)

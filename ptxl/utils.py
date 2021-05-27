@@ -1,6 +1,7 @@
 """Utility functions and classes.
 
 """
+import itertools
 from collections import namedtuple
 
 
@@ -12,7 +13,35 @@ Args:
     data (numpy.ndarray): The data.
     
 """
-class Counter:
+class Counter_:
+    """Abstract class to count indices.
+
+    """
+    @property
+    def name(self):
+        raise NotImplementedError
+
+    @property
+    def num(self):
+        raise NotImplementedError
+
+    @property
+    def index(self):
+        raise NotImplementedError
+
+    @property
+    def named_index(self):
+        raise NotImplementedError
+
+    @property
+    def __iter__(self):
+        raise NotImplementedError
+
+    def has_reached_end(self):
+        raise NotImplementedError
+
+
+class Counter(Counter_):
     """Counts an index and resets it when the maximum number is reached.
 
     Attributes:
@@ -21,56 +50,81 @@ class Counter:
 
     """
     def __init__(self, name, num):
-        self.name = name
+        self._name = name
         self._num = num
-
-        self._index = -1
+        self._index = 0
         self._template = self._get_template()
+
+    def __iter__(self):
+        self._index = 0
+        return self
+
+    def __next__(self):
+        result = self._index
+        if result < self.num:
+            self._index += 1
+            return result
+        else:
+            raise StopIteration
+
+    @property
+    def name(self):
+        return self._name
 
     @property
     def num(self):
         return self._num
 
     def has_reached_end(self):
-        return self._index == self.num - 1
-
-    def update(self):
-        self._index = (self._index + 1) % self.num
+        return self.index == self.num
 
     @property
     def index(self):
-        return self._index + 1
+        return self._index
 
     @property
     def named_index(self):
         return self._template % self.index
 
     def _get_template(self):
-        return '-'.join(self.name, '%%0%dd' % len(str(self.num)))
+        return '-'.join([self.name, '%%0%dd' % len(str(self.num))])
 
 
-class Counters:
+class Counters(Counter_):
     def __init__(self, counters):
         self.counters = counters
+        self._names = {c.name: i for i, c in enumerate(self.counters)}
+
+    def __len__(self):
+        return len(self.counters)
 
     @property
     def num(self):
         return [c.num for c in self.counters]
 
-    def has_reached_end(self):
-        return [c.has_reached_end() for c in self.counters]
+    @property
+    def name(self):
+        return [c.name for c in self.counters]
 
     @property
     def index(self):
         return [c.index for c in self.counters]
 
-    def update(self):
-        for counter in self.counters:
-            counter.update()
-
     @property
     def named_index(self):
         return [c.named_index for c in self.counters]
+
+    def __iter__(self):
+        return itertools.product(self.counters)
+
+    def has_reached_end(self):
+        return [c.has_reached_end() for c in self.counters]
+
+    def __getitem__(self, key):
+        if isinstance(key, str):
+            return self.counters[self._names[key]]
+        else:
+            return self.counters[key]
 
 
 class DataQueue:
