@@ -348,7 +348,6 @@ class ImageSaver(ThreadedSaver):
                 continue
             elif isinstance(batch, NamedData):
                 num_samples = batch.data.shape[0]
-                print(batch.name)
                 for sind, (name, sample) in enumerate(zip(*batch)):
                     fn = self._get_filename(sind, aind, attr, num_samples)
                     fn = '_'.join([fn, name])
@@ -360,18 +359,19 @@ class ImageSaver(ThreadedSaver):
                     self.queue.put(NamedData(fn, sample))
 
     def _get_filename(self, sample_ind, attr_ind, attr, num_samples):
-        dirname = Path(self.dirname, self._get_counter_named_index())
         attr = attr.replace('_', '-')
         sample_temp = 'sample-%%0%dd' % len(str())
         filename = sample_temp % (sample_ind + 1)
         attr_temp = '%%0%dd' % len(str(len(self.attrs)))
         attr_str = attr_temp % (attr_ind + 1)
         filename = '_'.join([filename, attr_temp % attr_ind, attr])
+        named_index = self._get_counter_named_index()
         if self.use_new_folder:
-            filename = str(Path(dirname, filename))
+            filename = Path(*named_index, filename)
         else:
-            filename = '_'.join([dirname, filename])
+            filename = '_'.join([*named_index, filename])
+        filename = str(Path(self.dirname, filename))
         return filename
 
     def _get_counter_named_index(self):
-        return Path(*self.contents.counter.named_index)
+        return self.contents.counter.named_index
