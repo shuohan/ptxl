@@ -151,10 +151,10 @@ class Printer(Observer):
         """Appends a data element with its name into the list."""
         if isinstance(data_elem, Iterable):
             data_elem = [self._convert_num(d) for d in data_elem]
-            data_elem = ['%s %s' % (n, d) for n, d in zip(data_name, data_elem)]
+            data_elem = ['%s: %s' % (n, d) for n, d in zip(data_name, data_elem)]
             data_list.extend(data_elem)
         else:
-            data_elem = '%s %s' % (data_name, self._convert_num(data_elem))
+            data_elem = '%s: %s' % (data_name, self._convert_num(data_elem))
             data_list.append(data_elem)
         return data_list
 
@@ -202,8 +202,10 @@ class MultiTqdmPrinter(TqdmPrinter):
     def start(self):
         assert isinstance(self.contents.counter.name, Iterable)
         self._vbar = tqdm(bar_format='{desc}', dynamic_ncols=True, position=0)
-        self._pbars = [trange(n, dynamic_ncols=True, position=i + 1)
-                       for i, n in enumerate(self._get_counter_num())]
+        num = self._get_counter_num()
+        desc = self._get_counter_name()
+        self._pbars = [trange(n, desc=d, dynamic_ncols=True, position=i + 1)
+                       for i, (n, d) in enumerate(zip(num, desc))]
 
     def _get_counter_num(self):
         return self.contents.counter.num
@@ -211,10 +213,13 @@ class MultiTqdmPrinter(TqdmPrinter):
     def _get_counter_index(self):
         return self.contents.counter.index
 
+    def _get_counter_name(self):
+        return self.contents.counter.name
+
     def _update(self):
         values = self.contents.get_values(self.attrs)
         desc = ', '.join(self._append_data([], self.attrs, values))
-        self._vbar.set_description(desc)
+        self._vbar.set_description_str(desc)
         self._vbar.refresh()
         counter_num = self._get_counter_num()
         counter_index = self._get_counter_index()
