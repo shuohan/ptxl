@@ -169,8 +169,8 @@ class TqdmPrinter(Printer):
     """
     def start(self):
         num = self._get_counter_num_total()
-        self._pbar = trange(num, dynamic_ncols=True, position=0)
-        self._vbar = tqdm(bar_format='{desc}', dynamic_ncols=True, position=1)
+        self._vbar = tqdm(bar_format='{desc}', dynamic_ncols=True, position=0)
+        self._pbar = trange(num, dynamic_ncols=True, position=1)
 
     def _get_counter_num(self):
         return np.prod(self.contents.counter.num)
@@ -200,26 +200,27 @@ class MultiTqdmPrinter(TqdmPrinter):
 
     """
     def start(self):
-        super().update_on_train_start()
         assert isinstance(self.contents.counter.name, Iterable)
-        self._pbars = [trange(n, dynamic_ncols=True, position=i)
-                       for i, n in enumerate(self._get_counter_num)]
-        self._vbar = tqdm(bar_format='{desc}', dynamic_ncols=True,
-                          position=len(self.contents.counter))
+        self._vbar = tqdm(bar_format='{desc}', dynamic_ncols=True, position=0)
+        self._pbars = [trange(n, dynamic_ncols=True, position=i + 1)
+                       for i, n in enumerate(self._get_counter_num())]
 
     def _get_counter_num(self):
         return self.contents.counter.num
 
     def _get_counter_index(self):
-        return self.countents.counter.index
+        return self.contents.counter.index
 
     def _update(self):
-        attrs = self.subject.abbrs
         values = self.contents.get_values(self.attrs)
         desc = ', '.join(self._append_data([], self.attrs, values))
         self._vbar.set_description(desc)
         self._vbar.refresh()
-        for pbar, index in zip(self._pbars, self._get_counter_index()):
+        counter_num = self._get_counter_num()
+        counter_index = self._get_counter_index()
+        for pbar, num, index in zip(self._pbars, counter_num, counter_index):
+            if pbar.total != num:
+                pbar.total = num
             pbar.n = index
             pbar.refresh()
 
