@@ -224,12 +224,17 @@ class MultiTqdmPrinter(TqdmPrinter):
         counter_num = self._get_counter_num()
         counter_index = self._get_counter_index()
         for pbar, num, index in zip(self._pbars, counter_num, counter_index):
+            refresh = False
             if pbar.total != num:
+                refresh = True
                 pbar.total = num
-            pbar.n = index
-            pbar.refresh()
+            if pbar.n != index:
+                refresh = True
+                pbar.n = index
+            if refresh:
+                pbar.refresh()
 
     def close(self):
+        self._vbar.close()
         for pbar in self._pbars:
             pbar.close()
-        self._vbar.close()
