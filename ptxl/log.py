@@ -136,10 +136,10 @@ class Printer(Observer):
         print(', '.join(line), flush=True)
 
     def _get_counter_index(self):
-        return self.contents.counter['batch'].named_index
+        return self.contents.counter.named_index
 
     def _get_counter_num(self):
-        return self.contents.counter['batch'].num
+        return self.contents.counter.num
 
     def _create_epoch_pattern(self):
         """Creates the pattern to print epoch info."""
