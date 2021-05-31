@@ -26,11 +26,19 @@ class Counter_:
         raise NotImplementedError
 
     @property
-    def index(self):
+    def index0(self):
         raise NotImplementedError
 
     @property
-    def named_index(self):
+    def named_index0(self):
+        raise NotImplementedError
+
+    @property
+    def index1(self):
+        raise NotImplementedError
+
+    @property
+    def named_index1(self):
         raise NotImplementedError
 
     @property
@@ -78,15 +86,23 @@ class Counter(Counter_):
         return self._num
 
     def has_reached_end(self):
-        return self.index == self.num
+        return self.index1 == self.num
 
     @property
-    def index(self):
+    def index0(self):
+        return self._current_index
+
+    @property
+    def named_index0(self):
+        return self._template % self.index0
+
+    @property
+    def index1(self):
         return self._current_index + 1
 
     @property
-    def named_index(self):
-        return self._template % self.index
+    def named_index1(self):
+        return self._template % self.index1
 
     def _get_template(self):
         return '-'.join([self.name, '%%0%dd' % len(str(self.num))])
@@ -109,12 +125,12 @@ class Counters(Counter_):
         return [c.name for c in self.counters]
 
     @property
-    def index(self):
-        return [c.index for c in self.counters]
+    def index1(self):
+        return [c.index1 for c in self.counters]
 
     @property
-    def named_index(self):
-        return [c.named_index for c in self.counters]
+    def named_index1(self):
+        return [c.named_index1 for c in self.counters]
 
     def __iter__(self):
         return itertools.product(self.counters)

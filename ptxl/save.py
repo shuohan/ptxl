@@ -47,7 +47,7 @@ class Saver(Observer):
         raise NotImplementedError
 
     def _need_to_update(self):
-        rule1 = self.contents.counter['epoch'].index % self.step == 0
+        rule1 = self.contents.counter['epoch'].index1 % self.step == 0
         rule2 = self.contents.counter['epoch'].has_reached_end()
         return rule1 or rule2
 
@@ -93,13 +93,13 @@ class CheckpointSaver(Saver):
         torch.save(contents, filename.with_suffix('.pt'))
 
     def _get_counter_named_index(self):
-        return self.contents.counter['epoch'].named_index
+        return self.contents.counter['epoch'].named_index1
 
     def _get_counter_name(self):
         return self.contents.counter['epoch'].name
 
     def _get_counter_index(self):
-        return self.contents.counter['epoch'].index
+        return self.contents.counter['epoch'].index1
 
 
 class SaveType(str, Enum):
@@ -374,4 +374,4 @@ class ImageSaver(ThreadedSaver):
         return filename
 
     def _get_counter_named_index(self):
-        return self.contents.counter.named_index
+        return self.contents.counter.named_index1

@@ -92,7 +92,7 @@ class Logger(Observer):
         return self.contents.counter.name
 
     def _get_counter_index(self):
-        return self.contents.counter.index
+        return self.contents.counter.index1
 
     def _append_data(self, data_list, data_elem):
         """Appends an element to a list.
@@ -136,7 +136,7 @@ class Printer(Observer):
         print(', '.join(line), flush=True)
 
     def _get_counter_index(self):
-        return self.contents.counter.named_index
+        return self.contents.counter.named_index1
 
     def _get_counter_num(self):
         return self.contents.counter.num
@@ -176,7 +176,7 @@ class TqdmPrinter(Printer):
         return np.prod(self.contents.counter.num)
 
     def _get_counter_index(self):
-        index = self.countents.counter.index
+        index = self.countents.counter.index1
         nums = self.countents.counter.num
         return np.ravel_multi_index(tuple(index), tuple(nums))
 
@@ -211,7 +211,7 @@ class MultiTqdmPrinter(TqdmPrinter):
         return self.contents.counter.num
 
     def _get_counter_index(self):
-        return self.contents.counter.index
+        return self.contents.counter.index1
 
     def _get_counter_name(self):
         return self.contents.counter.name
