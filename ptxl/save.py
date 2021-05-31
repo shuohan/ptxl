@@ -211,7 +211,7 @@ class SaveNifti(SaveImage):
         Path(filename).parent.mkdir(parents=True, exist_ok=True)
         if not filename.endswith('.nii') and not filename.endswith('.nii.gz'):
             filename = filename + '.nii.gz'
-        image = self._enlarge(image).numpy()
+        image = self._enlarge(image).numpy().squeeze()
         obj = nib.Nifti1Image(image, self.affine, self.header)
         obj.to_filename(filename)
 
