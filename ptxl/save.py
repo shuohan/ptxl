@@ -46,10 +46,11 @@ class Saver(Observer):
         """Implement save in this function."""
         raise NotImplementedError
 
-    def _need_to_update(self):
+    def _needs_to_update(self):
         rule1 = self.contents.counter['epoch'].index1 % self.step == 0
         rule2 = self.contents.counter['epoch'].has_reached_end()
-        return rule1 or rule2
+        rule3 = self.contents.counter['batch'].has_reached_end()
+        return (rule1 or rule2) and rule3
 
 
 class ThreadedSaver(Saver):
@@ -85,12 +86,15 @@ class CheckpointSaver(Saver):
         self.kwargs = kwargs
 
     def _update(self):
-        filename = Path(self.dirname, self._get_counter_index())
-        contents = {self._get_counter_name(): self._get_counter_index(),
-                    'model_state_dict': self.contents.get_model_state_dict(),
-                    'optim_state_dict': self.contents.get_optim_state_dict(),
-                    **self.kwargs}
+        filename = Path(self.dirname, self._get_counter_named_index())
+        contents = self._get_contents_to_save()
         torch.save(contents, filename.with_suffix('.pt'))
+
+    def _get_contents_to_save(self):
+        return {self._get_counter_name(): self._get_counter_index(),
+                'model_state_dict': self.contents.get_model_state_dict(),
+                'optim_state_dict': self.contents.get_optim_state_dict(),
+                **self.kwargs}
 
     def _get_counter_named_index(self):
         return self.contents.counter['epoch'].named_index1

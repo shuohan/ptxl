@@ -22,13 +22,17 @@ class Contents:
         self._tensors_cuda = dict()
         self._observers = list()
 
-    def get_model_state_dict():
+    def get_model_state_dict(self):
         """Returns the state dict of the network(s)."""
         return self.model.state_dict()
 
-    def get_optim_state_dict():
+    def get_optim_state_dict(self):
         """Returns the state dict of the optimizer(s)."""
         return self.optim.state_dict()
+
+    def load_state_dicts(self, checkpoint):
+        self.model.load_state_dict(checkpoint['model_state_dict'])
+        self.optim.load_state_dict(checkpoint['optim_state_dict'])
 
     def set_value(self, value_attr, value):
         """Sets a value.
