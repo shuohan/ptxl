@@ -160,7 +160,10 @@ class Printer(Observer):
 
     def _convert_num(self, num):
         """Converts a number to scientific format."""
-        return ('%%.%de' % self.decimals) % num
+        if float(num).is_integer():
+            return str(num)
+        else:
+            return ('%%.%de' % self.decimals) % num
 
 
 class TqdmPrinter(Printer):
