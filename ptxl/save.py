@@ -343,9 +343,10 @@ class ImageSaver(ThreadedSaver):
 
     """
     def __init__(self, dirname, save_image, attrs, step=10, save_init=False,
-                 use_new_folder=True):
+                 use_new_folder=True, ind_offset=0):
         self.save_image = save_image
         self.attrs = attrs
+        self.ind_offset = ind_offset
         self.use_new_folder = use_new_folder
         super().__init__(dirname, step=step, save_init=save_init)
 
@@ -374,8 +375,8 @@ class ImageSaver(ThreadedSaver):
         sample_temp = 'sample-%%0%dd' % len(str())
         filename = sample_temp % (sample_ind + 1)
         attr_temp = '%%0%dd' % len(str(len(self.attrs)))
-        attr_str = attr_temp % (attr_ind + 1)
-        filename = '_'.join([filename, attr_temp % attr_ind, attr])
+        attr_str = attr_temp % (self.ind_offset + attr_ind + 1)
+        filename = '_'.join([filename, attr_str, attr])
         named_index = self._get_counter_named_index()
         if self.use_new_folder:
             filename = Path(*named_index, filename)
