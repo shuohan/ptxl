@@ -92,6 +92,11 @@ class Counter(Counter_):
     def index0(self):
         return self._current_index
 
+    @index0.setter
+    def index0(self, index):
+        self._current_index = index
+        self._next_index = index + 1
+
     @property
     def named_index0(self):
         return self._template % self.index0
