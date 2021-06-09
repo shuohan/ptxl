@@ -230,7 +230,14 @@ class SavePngNorm(SaveImage):
         if not filename.endswith('.png'):
             filename = filename + '.png'
         image = self._enlarge(image).numpy().squeeze()
-        image = (image - np.min(image)) / (np.max(image) - np.min(image)) * 255
+        min_val = np.min(image)
+        max_val = np.max(image)
+        if max_val > min_val:
+            image = (image - min_val) / (max_val - min_val) * 255
+        elif max_val == 0:
+            image = image
+        else:
+            image = image / max_val * 255
         obj = Image.fromarray(image.astype(np.uint8))
         obj.save(filename)
 
