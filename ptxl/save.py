@@ -17,7 +17,7 @@ from enum import Enum
 from PIL import Image
 from torch.nn.functional import interpolate
 
-from .observer import Observer
+from .abstract import Observer
 from .utils import NamedData
 
 
@@ -37,8 +37,8 @@ class Saver(Observer):
         self.step = step
         self.save_init = save_init
 
-    def update_on_train_start(self):
-        """Creates the results folder."""
+    def start(self):
+        self.dirname.mkdir(parents=True, exist_ok=True)
         if self.save_init:
             self._save()
 
@@ -46,18 +46,15 @@ class Saver(Observer):
         """Implement save in this function."""
         raise NotImplementedError
 
-    def _need_to_save(self):
-        """Tests whether need to save at the current epoch."""
-        if self.step > 0:
-            rule1 = self.subject.epoch_ind % self.step == 0
-            rule2 = self.subject.epoch_ind == self.subject.num_epochs
-            return rule1 or rule2
-        else:
-            return False
+    def _needs_to_update(self):
+        rule1 = self.contents.counter['epoch'].index1 % self.step == 0
+        rule2 = self.contents.counter['epoch'].has_reached_end()
+        rule3 = self.contents.counter['batch'].has_reached_end()
+        return (rule1 or rule2) and rule3
 
 
 class ThreadedSaver(Saver):
-    """Saves with threads.
+    """Saves with a thread.
 
     """
     def __init__(self, dirname, step=0, save_init=False):
@@ -68,21 +65,19 @@ class ThreadedSaver(Saver):
     def _init_thread(self):
         raise NotImplementedError
 
-    def update_on_train_start(self):
-        super().update_on_train_start()
-        if self.step > 0:
-            self._thread.start()
+    def start(self):
+        self._thread.start()
+        super().start()
 
-    def update_on_train_end(self):
-        if self.step > 0:
-            self.queue.put(None)
-            self._thread.join()
+    def close(self):
+        self.queue.put(None)
+        self._thread.join()
 
 
 class CheckpointSaver(Saver):
     """Saves model periodically.
 
-    Attributes:
+    Args:
         kwargs (dict): The other stuff to save.
 
     """
@@ -90,24 +85,25 @@ class CheckpointSaver(Saver):
         super().__init__(dirname, step=step, save_init=save_init)
         self.kwargs = kwargs
 
-    def update_on_train_start(self):
-        pattern = 'epoch-%%0%dd.pt' % len(str(self.subject.num_epochs))
-        self._pattern = str(self.dirname.joinpath(pattern))
-        super().update_on_train_start()
+    def _update(self):
+        filename = Path(self.dirname, self._get_counter_named_index())
+        contents = self._get_contents_to_save()
+        torch.save(contents, filename.with_suffix('.pt'))
 
-    def update_on_epoch_end(self):
-        """Saves a checkpoint."""
-        if self._need_to_save():
-            self._save()
+    def _get_contents_to_save(self):
+        return {self._get_counter_name(): self._get_counter_index(),
+                'model_state_dict': self.contents.get_model_state_dict(),
+                'optim_state_dict': self.contents.get_optim_state_dict(),
+                **self.kwargs}
 
-    def _save(self):
-        self.dirname.mkdir(parents=True, exist_ok=True)
-        filename = self._pattern % self.subject.epoch_ind
-        contents = {'epoch': self.subject.epoch_ind,
-                    'model_state_dict': self.subject.get_model_state_dict(),
-                    'optim_state_dict': self.subject.get_optim_state_dict(),
-                    **self.kwargs}
-        torch.save(contents, filename)
+    def _get_counter_named_index(self):
+        return self.contents.counter['epoch'].named_index1
+
+    def _get_counter_name(self):
+        return self.contents.counter['epoch'].name
+
+    def _get_counter_index(self):
+        return self.contents.counter['epoch'].index1
 
 
 class SaveType(str, Enum):
@@ -139,13 +135,13 @@ class ImageType(str, Enum):
     SOFTMAX = 'softmax'
 
 
-def create_save_image(save_type, image_type, zoom=1):
+def create_save_image(save_type, image_type, save_kwargs):
     """Creates an instance of :class:`SaveImage`.
 
     Args:
         save_type (enum SaveType or str): The type of :class:`SaveImage`.
         image_type (enum ImageType or str): The type of image to save.
-        zoom (int): Enlarge the image by this factor.
+        save_kwargs (dict): The other keyword arguments.
 
     Returns:
         SaveImage: An instance of :class:`SaveImage`.
@@ -155,13 +151,13 @@ def create_save_image(save_type, image_type, zoom=1):
     image_type = ImageType(image_type)
 
     if save_type is SaveType.NIFTI:
-        save_image = SaveNifti(zoom=zoom)
+        save_image = SaveNifti(**save_kwargs)
     elif save_type is SaveType.PNG_NORM:
-        save_image = SavePngNorm(zoom=zoom)
+        save_image = SavePngNorm(**save_kwargs)
     elif save_type is SaveType.PNG:
-        save_image = SavePng(zoom=zoom)
+        save_image = SavePng(**save_kwargs)
     elif save_type is SaveType.PLOT:
-        save_image = SavePlot()
+        save_image = SavePlot(**save_kwargs)
 
     if image_type is ImageType.SEG:
         save_image = SaveSeg(save_image)
@@ -180,7 +176,7 @@ class SaveImage:
         zoom (int): Enlarge the image by this factor.
 
     """
-    def __init__(self, zoom=1):
+    def __init__(self, zoom=1, **kwargs):
         self.zoom = zoom
 
     def save(self, filename, image):
@@ -204,14 +200,23 @@ class SaveImage:
 class SaveNifti(SaveImage):
     """Writes images as nifti files.
 
+    Attributes:
+        affine (numpy.ndarray): The affine matrix
+        header (nibabel.Nifti1Header): The nifti header.
+
     """
+    def __init__(self, zoom=1, affine=np.eye(4), header=None, **kwargs):
+        super().__init__(zoom)
+        self.affine = affine
+        self.header = header
+
     def save(self, filename, image):
         filename = str(filename)
         Path(filename).parent.mkdir(parents=True, exist_ok=True)
         if not filename.endswith('.nii') and not filename.endswith('.nii.gz'):
             filename = filename + '.nii.gz'
-        image = self._enlarge(image).numpy()
-        obj = nib.Nifti1Image(image, np.eye(4))
+        image = self._enlarge(image).numpy().squeeze()
+        obj = nib.Nifti1Image(image, self.affine, self.header)
         obj.to_filename(filename)
 
 
@@ -225,7 +230,14 @@ class SavePngNorm(SaveImage):
         if not filename.endswith('.png'):
             filename = filename + '.png'
         image = self._enlarge(image).numpy().squeeze()
-        image = (image - np.min(image)) / (np.max(image) - np.min(image)) * 255
+        min_val = np.min(image)
+        max_val = np.max(image)
+        if max_val > min_val:
+            image = (image - min_val) / (max_val - min_val) * 255
+        elif max_val == 0:
+            image = image
+        else:
+            image = image / max_val * 255
         obj = Image.fromarray(image.astype(np.uint8))
         obj.save(filename)
 
@@ -259,6 +271,7 @@ class SavePlot(SaveImage):
         plt.grid(True)
         plt.tight_layout()
         plt.gcf().savefig(filename)
+        plt.close()
 
 
 class SaveSeg(SaveImage):
@@ -325,90 +338,52 @@ class ImageSaver(ThreadedSaver):
 
     Attributes:
         attrs (list[str]): The attribute names of :attr:`subject` to save.
+        save_image (SaveImage): Strategy to save the images.
         queue (queue.Queue): The queue to give data to its thread.
-        save_type (str): The type of files to save the images to.
-        image_type (str): The type of images to save.
-        file_struct (str): Indicates the file structure. For example,
-            ``"epoch/batch/sample"`` saves all samples of a mini-batch as
-            `dirname/epoch-ind/batch-ind/sample-ind_name.ext``.
-            ``"epoch/batch"`` saves the samples as
-            ``dirname/epoch-ind/batch-ind_sample-ind_name.ext``.
-        zoom (int): Enlarge the image by this factor.
-        ordered (bool): Order the saved images according to :attr:`attrs`.
-        create_save_image (function): The function to create an instance of
-            :class:`SaveImage`.
 
     """
-    def __init__(self, dirname, attrs=[], step=10, save_type='nifti',
-                 image_type='image', file_struct='epoch/batch/sample',
-                 save_init=False, zoom=1, ordered=False, prefix='',
-                 create_save_image=create_save_image):
-        self.save_type = save_type
-        self.image_type = image_type
+    def __init__(self, dirname, save_image, attrs, step=10, save_init=False,
+                 use_new_folder=True, ind_offset=0):
+        self.save_image = save_image
         self.attrs = attrs
-        self.file_struct = file_struct
-        self.zoom = zoom
-        self.ordered = ordered
-        self.prefix = prefix
-        self.create_save_image = create_save_image
-        self._pattern = None
+        self.ind_offset = ind_offset
+        self.use_new_folder = use_new_folder
         super().__init__(dirname, step=step, save_init=save_init)
 
-    def update_on_train_start(self):
-        self._pattern = self._get_filename_pattern()
-        super().update_on_train_start()
-
     def _init_thread(self):
-        save = self.create_save_image(self.save_type, self.image_type, self.zoom)
-        return ImageThread(save, self.queue)
+        return ImageThread(self.save_image, self.queue)
 
-    def _get_filename_pattern(self):
-        epoch_pattern = 'epoch-%%0%dd' % len(str(self.subject.num_epochs))
-        batch_pattern = 'batch-%%0%dd' % len(str(self.subject.num_batches))
-        sample_pattern = 'sample-%%0%dd' % len(str(self.subject.batch_size))
-        all_parts = ['epoch', 'batch', 'sample']
-        file_parts = self.file_struct.split('/')
-        assert set(file_parts).issubset(set(all_parts))
-        pattern = self.dirname
-        for ap in all_parts:
-            sub_pattern = eval('_'.join([ap, 'pattern']))
-            pattern = self._join_pattern(sub_pattern, pattern, ap in file_parts)
-        if self.ordered:
-            attr_pattern = '%%0%dd' % len(str(len(self.attrs)))
-            if len(self.prefix) > 0:
-                attr_pattern = '-'.join([self.prefix, attr_pattern])
-            pattern = self._join_pattern(attr_pattern, pattern, False)
-        pattern = self._join_pattern('%s', pattern, False)
-        return pattern
-
-    def _join_pattern(self, sub, all, as_path=True):
-        """Concatenates ``sub_pattern`` after ``pattern``."""
-        return str(Path(all, sub)) if as_path else '_'.join([all, sub])
-
-    def update_on_batch_end(self):
-        if self._need_to_save():
-            self._save()
-
-    def _save(self):
+    def _update(self):
         for aind, attr in enumerate(self.attrs):
-            batch = self.subject.get_tensor(attr, 'cpu')
-            if isinstance(batch, NamedData):
+            batch = self.contents.get_tensor(attr, 'cpu')
+            if batch is None:
+                continue
+            elif isinstance(batch, NamedData):
+                num_samples = batch.data.shape[0]
                 for sind, (name, sample) in enumerate(zip(*batch)):
-                    filename = self._get_filename(sind + 1, aind + 1, attr)
-                    filename = '_'.join([filename, name])
-                    self.queue.put(NamedData(filename, sample))
+                    fn = self._get_filename(sind, aind, attr, num_samples)
+                    fn = '_'.join([fn, name])
+                    self.queue.put(NamedData(fn, sample))
             else:
+                num_samples = batch.shape[0]
                 for sind, sample in enumerate(batch):
-                    filename = self._get_filename(sind + 1, aind + 1, attr)
-                    self.queue.put(NamedData(filename, sample))
+                    fn = self._get_filename(sind, aind, attr, num_samples)
+                    self.queue.put(NamedData(fn, sample))
 
-    def _get_filename(self, sample_ind, attr_ind, attr):
+    def _get_filename(self, sample_ind, attr_ind, attr, num_samples):
         attr = attr.replace('_', '-')
-        if self.ordered:
-            return self._pattern % (self.subject.epoch_ind,
-                                    self.subject.batch_ind,
-                                    sample_ind, attr_ind, attr)
+        sample_temp = 'sample-%%0%dd' % len(str())
+        filename = sample_temp % (sample_ind + 1)
+        attr_temp = '%%0%dd' % len(str(len(self.attrs)))
+        attr_str = attr_temp % (self.ind_offset + attr_ind + 1)
+        filename = '_'.join([filename, attr_str, attr])
+        named_index = self._get_counter_named_index()
+        if self.use_new_folder:
+            filename = Path(*named_index, filename)
         else:
-            return self._pattern % (self.subject.epoch_ind,
-                                    self.subject.batch_ind,
-                                    sample_ind, attr)
+            filename = '_'.join([*named_index, filename])
+        filename = str(Path(self.dirname, filename))
+        return filename
+
+    def _get_counter_named_index(self):
+        return self.contents.counter.named_index1
