@@ -171,7 +171,7 @@ class TqdmPrinter(Printer):
 
     """
     def start(self):
-        num = self._get_counter_num_total()
+        num = self._get_counter_num()
         self._vbar = tqdm(bar_format='{desc}', dynamic_ncols=True, position=0)
         self._pbar = trange(num, dynamic_ncols=True, position=1)
 
@@ -179,9 +179,11 @@ class TqdmPrinter(Printer):
         return np.prod(self.contents.counter.num)
 
     def _get_counter_index(self):
-        index = self.countents.counter.index1
-        nums = self.countents.counter.num
-        return np.ravel_multi_index(tuple(index), tuple(nums))
+        index = self.contents.counter.index1
+        nums = self.contents.counter.num
+        if isinstance(index, Iterable):
+            index = np.ravel_multi_index(tuple(index), tuple(nums))
+        return index
 
     def _update(self):
         """Updates the tqdm progress bar."""
