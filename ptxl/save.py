@@ -386,4 +386,7 @@ class ImageSaver(ThreadedSaver):
         return filename
 
     def _get_counter_named_index(self):
-        return self.contents.counter.named_index1
+        ind = self.contents.counter.named_index1
+        if isinstance(ind, str):
+            ind = [ind]
+        return ind
