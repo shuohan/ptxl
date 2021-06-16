@@ -1,6 +1,7 @@
 """Classes to print and log training and validation progress.
 
 """
+import os
 import numpy as np
 from pathlib import Path
 import warnings
@@ -176,6 +177,7 @@ class TqdmPrinter(Printer):
         num = self._get_counter_num()
         self._vbar = tqdm(bar_format='{desc}', dynamic_ncols=True, position=0)
         self._pbar = trange(num, dynamic_ncols=True, position=1)
+        self._num_cols = os.get_terminal_size().columns - 1
 
     def _get_counter_num(self):
         return np.prod(self.contents.counter.num)
@@ -191,8 +193,9 @@ class TqdmPrinter(Printer):
         """Updates the tqdm progress bar."""
         values = self.contents.get_values(self.attrs)
         desc = ', '.join(self._append_data([], self.attrs, values))
+        desc = desc[:self._num_cols]
         self._pbar.n = self._get_counter_index()
-        self._vbar.set_description(desc)
+        self._vbar.set_description_str(desc)
         self._pbar.refresh()
         self._vbar.refresh()
 
@@ -213,6 +216,7 @@ class MultiTqdmPrinter(TqdmPrinter):
         desc = self._get_counter_name()
         self._pbars = [trange(n, desc=d, dynamic_ncols=True, position=i + 1)
                        for i, (n, d) in enumerate(zip(num, desc))]
+        self._num_cols = os.get_terminal_size().columns - 1
 
     def _get_counter_num(self):
         return self.contents.counter.num
@@ -226,6 +230,7 @@ class MultiTqdmPrinter(TqdmPrinter):
     def _update(self):
         values = self.contents.get_values(self.attrs)
         desc = ', '.join(self._append_data([], self.attrs, values))
+        desc = desc[:self._num_cols]
         self._vbar.set_description_str(desc)
         self._vbar.refresh()
         counter_num = self._get_counter_num()
