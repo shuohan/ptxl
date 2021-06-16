@@ -109,6 +109,8 @@ class Contents:
             tensor = self._tensors_cuda[tensor_attr]
             if isinstance(tensor, NamedData):
                 tensor = NamedData(tensor.name, tensor.data.detach().cpu())
+            else:
+                tensor = tensor.detach().cpu()
             return tensor
 
     def get_tensor_cuda(self, tensor_attr):
@@ -118,6 +120,8 @@ class Contents:
             tensor = self._tensors_cpu[tensor_attr]
             if isinstance(tensor, NamedData):
                 tensor = NamedData(tensor.name, tensor.data.cuda())
+            else:
+                tensor = tensor.cuda()
             return tensor
 
     def set_tensor(self, attr, tensor, name=None, device='cuda'):
