@@ -105,6 +105,8 @@ class Logger(Observer):
             list: The appended list.
 
         """
+        if not isinstance(data_list, list):
+            data_list = [data_list]
         if isinstance(data_elem, list):
             data_list.extend(data_elem)
         else:
