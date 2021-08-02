@@ -210,13 +210,14 @@ class MultiTqdmPrinter(TqdmPrinter):
 
     """
     def start(self):
+        self._num_cols = os.get_terminal_size().columns - 1
+
         assert isinstance(self.contents.counter.name, Iterable)
         self._vbar = tqdm(bar_format='{desc}', dynamic_ncols=True, position=0)
         num = self._get_counter_num()
         desc = self._get_counter_name()
         self._pbars = [trange(n, desc=d, dynamic_ncols=True, position=i + 1)
                        for i, (n, d) in enumerate(zip(num, desc))]
-        self._num_cols = os.get_terminal_size().columns - 1
 
     def _get_counter_num(self):
         return self.contents.counter.num
@@ -233,18 +234,17 @@ class MultiTqdmPrinter(TqdmPrinter):
         desc = desc[:self._num_cols]
         self._vbar.set_description_str(desc)
         self._vbar.refresh()
+
         counter_num = self._get_counter_num()
         counter_index = self._get_counter_index()
-        for pbar, num, index in zip(self._pbars, counter_num, counter_index):
-            refresh = False
-            if pbar.total != num:
-                refresh = True
-                pbar.total = num
-            if pbar.n != index:
-                refresh = True
-                pbar.n = index
-            if refresh:
-                pbar.refresh()
+        counter_desc = self._get_counter_name()
+        for i in range(len(self._pbars)):
+            step = index - self._pbars[i].n
+            if step > 0:
+                self._pbars[i].update(step)
+            else:
+                self._pbars[i] = trange(n, desc=counter_desc[i],
+                                        dynamic_ncols=True, position=i + 1)
 
     def close(self):
         self._vbar.close()
