@@ -54,7 +54,10 @@ class Contents:
             float: The value.
 
         """
-        return self._values[value_attr]
+        if value_attr not in self._values:
+            return float('nan')
+        else:
+            return self._values[value_attr]
 
     def get_values(self, value_attrs):
         """Returns values (e.g., losses).
