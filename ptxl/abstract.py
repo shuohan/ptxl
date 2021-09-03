@@ -4,7 +4,44 @@
 from .utils import NamedData
 
 
-class Contents:
+class _Contents:
+    def __init__(self):
+        self._observers = list()
+
+    def register(self, observer):
+        """Registers an observer to get notified.
+
+        Args:
+            observer (Observer): The observer to register.
+
+        """
+        observer.set_contents(self)
+        self._observers.append(observer)
+
+    def remove(self, observer):
+        """Removes an observer.
+
+        Args:
+            observer (Observer): The observer to remove. It has to be registered
+                before.
+
+        """
+        self._observers.remove(observer)
+
+    def start_observers(self):
+        for ob in self._observers:
+            ob.start()
+
+    def notify_observers(self):
+        for ob in self._observers:
+            ob.update()
+
+    def close_observers(self):
+        for ob in self._observers:
+            ob.close()
+
+
+class Contents(_Contents):
     """Training contents.
 
     This class implements the Subject in the observer design pattern. It holds
@@ -13,6 +50,8 @@ class Contents:
 
     """
     def __init__(self, model, optim, counter):
+        super().__init__()
+
         self.model = model
         self.optim = optim
         self.counter = counter
@@ -20,7 +59,6 @@ class Contents:
         self._values = dict()
         self._tensors_cpu = dict()
         self._tensors_cuda = dict()
-        self._observers = list()
 
     def get_model_state_dict(self):
         """Returns the state dict of the network(s)."""
@@ -69,7 +107,7 @@ class Contents:
             list[float]: The values.
 
         """
-        return [self._values[a] for a in value_attrs]
+        return [self._values.get(a, float('nan')) for a in value_attrs]
 
     def get_value_attrs(self):
         """Returns the attribute names of all available values."""
@@ -147,41 +185,9 @@ class Contents:
             tensor = NamedData(name=name, data=tensor)
         self._tensors_cuda[attr] = tensor
 
-    def register(self, observer):
-        """Registers an observer to get notified.
-
-        Args:
-            observer (Observer): The observer to register.
-
-        """
-        observer.set_contents(self)
-        self._observers.append(observer)
-
-    def remove(self, observer):
-        """Removes an observer.
-
-        Args:
-            observer (Observer): The observer to remove. It has to be registered
-                before.
-
-        """
-        self._observers.remove(observer)
-
-    def start_observers(self):
-        for ob in self._observers:
-            ob.start()
-
-    def notify_observers(self):
-        for ob in self._observers:
-            ob.update()
-
-    def close_observers(self):
-        for ob in self._observers:
-            ob.close()
-
 
 class Observer:
-    """Gets notified by :class:`Contents` to update its status.
+    """Gets notified by :class:`_Contents` to update its status.
 
     Args:
         step (int): The update step size.
@@ -201,7 +207,7 @@ class Observer:
 
     def _check_contents_type(self, contents):
         """Enforces the type of acceptable contents here."""
-        assert isinstance(contents, Contents)
+        assert isinstance(contents, _Contents)
 
     def start(self):
         """Does some initialization after :meth:`contents` is registered."""
