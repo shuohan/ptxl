@@ -173,10 +173,8 @@ class Printer(Observer):
 
 
 class TqdmPrinterNoDesc(Printer):
-    def __init__(self, decimals=4, attrs=[], loc_offset=0):
+    def __init__(self, loc_offset=0):
         super().__init__()
-        self.decimals = decimals
-        self.attrs = attrs
         self.loc_offset = loc_offset
 
     def start(self):
@@ -212,26 +210,47 @@ class TqdmPrinter(TqdmPrinterNoDesc):
     """Uses tqdm to print training or validation progress.
 
     """
+    def __init__(self, decimals=4, attrs=[], loc_offset=0, num_desc_lines=1):
+        super().__init__(loc_offset)
+        self.decimals = decimals
+        self.num_desc_lines = num_desc_lines
+        self.attrs = self._divide_attrs(attrs)
+
+    def _divide_attrs(self, attrs):
+        q, r = divmod(len(attrs), self.num_desc_lines)
+        nums = [q + 1] * r + [q] * (self.num_desc_lines - r)
+        start_ind = 0
+        results = list()
+        for n in nums:
+            stop_ind = start_ind + n
+            part = attrs[start_ind : stop_ind]
+            results.append(part)
+            start_ind = stop_ind
+        return results
+
     def start(self):
         num = self._get_counter_num()
-        self._vbar = tqdm(bar_format='{desc}', dynamic_ncols=True,
-                          position=0 + self.loc_offset)
+        self._vbars = [tqdm(bar_format='{desc}', dynamic_ncols=True,
+                            position=i + self.loc_offset)
+                       for i in range(self.num_desc_lines)]
         self._pbar = tqdm(total=num, dynamic_ncols=True,
-                          position=1 + self.loc_offset)
+                          position=self.num_desc_lines + self.loc_offset)
         self._num_cols = os.get_terminal_size().columns - 1
 
     def _update(self):
         """Updates the tqdm progress bar."""
-        values = self.contents.get_values(self.attrs)
-        desc = ', '.join(self._append_data([], self.attrs, values))
-        desc = desc[:self._num_cols]
-        self._vbar.set_description_str(desc)
-        self._vbar.refresh()
+        for vbar, attrs in zip(self._vbars, self.attrs):
+            values = self.contents.get_values(attrs)
+            desc = ', '.join(self._append_data([], attrs, values))
+            desc = desc[:self._num_cols]
+            vbar.set_description_str(desc)
+            vbar.refresh()
         super()._update()
 
     def close(self):
         """Closes the tqdm progress bar."""
-        self._vbar.close()
+        for vbar in self._vbars:
+            vbar.close()
         self._pbar.close()
 
 
@@ -243,12 +262,14 @@ class MultiTqdmPrinter(TqdmPrinter):
         self._num_cols = os.get_terminal_size().columns - 1
 
         assert isinstance(self.contents.counter.name, Iterable)
-        self._vbar = tqdm(bar_format='{desc}', dynamic_ncols=True,
-                          position=0 + self.loc_offset)
+        self._vbars = [tqdm(bar_format='{desc}', dynamic_ncols=True,
+                            position=i + self.loc_offset)
+                       for i in range(self.num_desc_lines)]
+
         num = self._get_counter_num()
         desc = self._get_counter_name()
         self._pbars = [tqdm(total=n, desc=d, dynamic_ncols=True,
-                            position=i + 1 + self.loc_offset)
+                            position=i + self.num_desc_lines + self.loc_offset)
                        for i, (n, d) in enumerate(zip(num, desc))]
 
     def _get_counter_num(self):
@@ -261,11 +282,12 @@ class MultiTqdmPrinter(TqdmPrinter):
         return self.contents.counter.name
 
     def _update(self):
-        values = self.contents.get_values(self.attrs)
-        desc = ', '.join(self._append_data([], self.attrs, values))
-        desc = desc[:self._num_cols]
-        self._vbar.set_description_str(desc)
-        self._vbar.refresh()
+        for vbar, attrs in zip(self._vbars, self.attrs):
+            values = self.contents.get_values(attrs)
+            desc = ', '.join(self._append_data([], attrs, values))
+            desc = desc[:self._num_cols]
+            vbar.set_description_str(desc)
+            vbar.refresh()
 
         counter_num = self._get_counter_num()
         counter_index = self._get_counter_index()
@@ -284,6 +306,7 @@ class MultiTqdmPrinter(TqdmPrinter):
                     update_next = True
 
     def close(self):
-        self._vbar.close()
+        for vbar in self._vbars:
+            vbar.close()
         for pbar in self._pbars:
             pbar.close()
