@@ -144,6 +144,9 @@ class Printer(Observer):
     def _get_counter_num(self):
         return self.contents.counter.num
 
+    def _get_counter_name(self):
+        return self.contents.counter.name
+
     def _create_epoch_pattern(self):
         """Creates the pattern to print epoch info."""
         pattern = '%%0%dd' % len(str(self.subject.num_epochs))
@@ -169,15 +172,18 @@ class Printer(Observer):
             return ('%%.%de' % self.decimals) % num
 
 
-class TqdmPrinter(Printer):
-    """Uses tqdm to print training or validation progress.
+class TqdmPrinterNoDesc(Printer):
+    def __init__(self, decimals=4, attrs=[], loc_offset=0):
+        super().__init__()
+        self.decimals = decimals
+        self.attrs = attrs
+        self.loc_offset = loc_offset
 
-    """
     def start(self):
         num = self._get_counter_num()
-        self._vbar = tqdm(bar_format='{desc}', dynamic_ncols=True, position=0)
-        self._pbar = tqdm(total=num, dynamic_ncols=True, position=1)
-        self._num_cols = os.get_terminal_size().columns - 1
+        desc = self._get_counter_name()
+        self._pbar = tqdm(total=num, dynamic_ncols=True, desc=desc,
+                          position=self.loc_offset)
 
     def _get_counter_num(self):
         return np.prod(self.contents.counter.num)
@@ -190,14 +196,38 @@ class TqdmPrinter(Printer):
         return index
 
     def _update(self):
+        counter_num = self._get_counter_num()
+        counter_index = self._get_counter_index()
+        step = counter_index - self._pbar.n
+        if step > 0:
+            self._pbar.update(step)
+        elif step < 0:
+            self._pbar.reset(counter_num)
+
+    def close(self):
+        self._pbar.close()
+
+
+class TqdmPrinter(TqdmPrinterNoDesc):
+    """Uses tqdm to print training or validation progress.
+
+    """
+    def start(self):
+        num = self._get_counter_num()
+        self._vbar = tqdm(bar_format='{desc}', dynamic_ncols=True,
+                          position=0 + self.loc_offset)
+        self._pbar = tqdm(total=num, dynamic_ncols=True,
+                          position=1 + self.loc_offset)
+        self._num_cols = os.get_terminal_size().columns - 1
+
+    def _update(self):
         """Updates the tqdm progress bar."""
         values = self.contents.get_values(self.attrs)
         desc = ', '.join(self._append_data([], self.attrs, values))
         desc = desc[:self._num_cols]
-        self._pbar.n = self._get_counter_index()
         self._vbar.set_description_str(desc)
-        self._pbar.refresh()
         self._vbar.refresh()
+        super()._update()
 
     def close(self):
         """Closes the tqdm progress bar."""
@@ -213,10 +243,12 @@ class MultiTqdmPrinter(TqdmPrinter):
         self._num_cols = os.get_terminal_size().columns - 1
 
         assert isinstance(self.contents.counter.name, Iterable)
-        self._vbar = tqdm(bar_format='{desc}', dynamic_ncols=True, position=0)
+        self._vbar = tqdm(bar_format='{desc}', dynamic_ncols=True,
+                          position=0 + self.loc_offset)
         num = self._get_counter_num()
         desc = self._get_counter_name()
-        self._pbars = [tqdm(total=n, desc=d, dynamic_ncols=True, position=i + 1)
+        self._pbars = [tqdm(total=n, desc=d, dynamic_ncols=True,
+                            position=i + 1 + self.loc_offset)
                        for i, (n, d) in enumerate(zip(num, desc))]
 
     def _get_counter_num(self):
