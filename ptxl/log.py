@@ -1,11 +1,11 @@
 """Classes to print and log training and validation progress.
 
 """
-import os
 import numpy as np
 from pathlib import Path
 import warnings
 from collections.abc import Iterable
+import shutil
 from tqdm import tqdm
 
 from .abstract import Observer
@@ -182,6 +182,7 @@ class TqdmPrinterNoDesc(Printer):
         desc = self._get_counter_name()
         self._pbar = tqdm(total=num, dynamic_ncols=True, desc=desc,
                           position=self.loc_offset)
+        self._num_cols = shutil.get_terminal_size(fallback=(120, 50)).columns - 1
 
     def _get_counter_num(self):
         return np.prod(self.contents.counter.num)
@@ -235,7 +236,7 @@ class TqdmPrinter(TqdmPrinterNoDesc):
                        for i in range(self.num_desc_lines)]
         self._pbar = tqdm(total=num, dynamic_ncols=True,
                           position=self.num_desc_lines + self.loc_offset)
-        self._num_cols = os.get_terminal_size().columns - 1
+        self._num_cols = shutil.get_terminal_size(fallback=(120, 50)).columns - 1
 
     def _update(self):
         """Updates the tqdm progress bar."""
@@ -259,8 +260,6 @@ class MultiTqdmPrinter(TqdmPrinter):
 
     """
     def start(self):
-        self._num_cols = os.get_terminal_size().columns - 1
-
         assert isinstance(self.contents.counter.name, Iterable)
         self._vbars = [tqdm(bar_format='{desc}', dynamic_ncols=True,
                             position=i + self.loc_offset)
@@ -271,6 +270,7 @@ class MultiTqdmPrinter(TqdmPrinter):
         self._pbars = [tqdm(total=n, desc=d, dynamic_ncols=True,
                             position=i + self.num_desc_lines + self.loc_offset)
                        for i, (n, d) in enumerate(zip(num, desc))]
+        self._num_cols = shutil.get_terminal_size(fallback=(120, 50)).columns - 1
 
     def _get_counter_num(self):
         return self.contents.counter.num
