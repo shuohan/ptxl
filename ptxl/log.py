@@ -6,7 +6,7 @@ import numpy as np
 from pathlib import Path
 import warnings
 from collections.abc import Iterable
-from tqdm import trange, tqdm
+from tqdm import tqdm
 
 from .abstract import Observer
 
@@ -144,6 +144,9 @@ class Printer(Observer):
     def _get_counter_num(self):
         return self.contents.counter.num
 
+    def _get_counter_name(self):
+        return self.contents.counter.name
+
     def _create_epoch_pattern(self):
         """Creates the pattern to print epoch info."""
         pattern = '%%0%dd' % len(str(self.subject.num_epochs))
@@ -169,15 +172,16 @@ class Printer(Observer):
             return ('%%.%de' % self.decimals) % num
 
 
-class TqdmPrinter(Printer):
-    """Uses tqdm to print training or validation progress.
+class TqdmPrinterNoDesc(Printer):
+    def __init__(self, loc_offset=0):
+        super().__init__()
+        self.loc_offset = loc_offset
 
-    """
     def start(self):
         num = self._get_counter_num()
-        self._vbar = tqdm(bar_format='{desc}', dynamic_ncols=True, position=0)
-        self._pbar = trange(num, dynamic_ncols=True, position=1)
-        self._num_cols = os.get_terminal_size().columns - 1
+        desc = self._get_counter_name()
+        self._pbar = tqdm(total=num, dynamic_ncols=True, desc=desc,
+                          position=self.loc_offset)
 
     def _get_counter_num(self):
         return np.prod(self.contents.counter.num)
@@ -190,18 +194,63 @@ class TqdmPrinter(Printer):
         return index
 
     def _update(self):
+        counter_num = self._get_counter_num()
+        counter_index = self._get_counter_index()
+        step = counter_index - self._pbar.n
+        if step > 0:
+            self._pbar.update(step)
+        elif step < 0:
+            self._pbar.reset(counter_num)
+
+    def close(self):
+        self._pbar.close()
+
+
+class TqdmPrinter(TqdmPrinterNoDesc):
+    """Uses tqdm to print training or validation progress.
+
+    """
+    def __init__(self, decimals=4, attrs=[], loc_offset=0, num_desc_lines=1):
+        super().__init__(loc_offset)
+        self.decimals = decimals
+        self.num_desc_lines = num_desc_lines
+        self.attrs = self._divide_attrs(attrs)
+
+    def _divide_attrs(self, attrs):
+        q, r = divmod(len(attrs), self.num_desc_lines)
+        nums = [q + 1] * r + [q] * (self.num_desc_lines - r)
+        start_ind = 0
+        results = list()
+        for n in nums:
+            stop_ind = start_ind + n
+            part = attrs[start_ind : stop_ind]
+            results.append(part)
+            start_ind = stop_ind
+        return results
+
+    def start(self):
+        num = self._get_counter_num()
+        self._vbars = [tqdm(bar_format='{desc}', dynamic_ncols=True,
+                            position=i + self.loc_offset)
+                       for i in range(self.num_desc_lines)]
+        self._pbar = tqdm(total=num, dynamic_ncols=True,
+                          position=self.num_desc_lines + self.loc_offset)
+        self._num_cols = os.get_terminal_size().columns - 1
+
+    def _update(self):
         """Updates the tqdm progress bar."""
-        values = self.contents.get_values(self.attrs)
-        desc = ', '.join(self._append_data([], self.attrs, values))
-        desc = desc[:self._num_cols]
-        self._pbar.n = self._get_counter_index()
-        self._vbar.set_description_str(desc)
-        self._pbar.refresh()
-        self._vbar.refresh()
+        for vbar, attrs in zip(self._vbars, self.attrs):
+            values = self.contents.get_values(attrs)
+            desc = ', '.join(self._append_data([], attrs, values))
+            desc = desc[:self._num_cols]
+            vbar.set_description_str(desc)
+            vbar.refresh()
+        super()._update()
 
     def close(self):
         """Closes the tqdm progress bar."""
-        self._vbar.close()
+        for vbar in self._vbars:
+            vbar.close()
         self._pbar.close()
 
 
@@ -210,13 +259,18 @@ class MultiTqdmPrinter(TqdmPrinter):
 
     """
     def start(self):
+        self._num_cols = os.get_terminal_size().columns - 1
+
         assert isinstance(self.contents.counter.name, Iterable)
-        self._vbar = tqdm(bar_format='{desc}', dynamic_ncols=True, position=0)
+        self._vbars = [tqdm(bar_format='{desc}', dynamic_ncols=True,
+                            position=i + self.loc_offset)
+                       for i in range(self.num_desc_lines)]
+
         num = self._get_counter_num()
         desc = self._get_counter_name()
-        self._pbars = [trange(n, desc=d, dynamic_ncols=True, position=i + 1)
+        self._pbars = [tqdm(total=n, desc=d, dynamic_ncols=True,
+                            position=i + self.num_desc_lines + self.loc_offset)
                        for i, (n, d) in enumerate(zip(num, desc))]
-        self._num_cols = os.get_terminal_size().columns - 1
 
     def _get_counter_num(self):
         return self.contents.counter.num
@@ -228,25 +282,31 @@ class MultiTqdmPrinter(TqdmPrinter):
         return self.contents.counter.name
 
     def _update(self):
-        values = self.contents.get_values(self.attrs)
-        desc = ', '.join(self._append_data([], self.attrs, values))
-        desc = desc[:self._num_cols]
-        self._vbar.set_description_str(desc)
-        self._vbar.refresh()
+        for vbar, attrs in zip(self._vbars, self.attrs):
+            values = self.contents.get_values(attrs)
+            desc = ', '.join(self._append_data([], attrs, values))
+            desc = desc[:self._num_cols]
+            vbar.set_description_str(desc)
+            vbar.refresh()
+
         counter_num = self._get_counter_num()
         counter_index = self._get_counter_index()
-        for pbar, num, index in zip(self._pbars, counter_num, counter_index):
-            refresh = False
-            if pbar.total != num:
-                refresh = True
-                pbar.total = num
-            if pbar.n != index:
-                refresh = True
-                pbar.n = index
-            if refresh:
-                pbar.refresh()
+
+        update_next = True
+        for i in reversed(range(len(self._pbars))):
+            if update_next:
+                step = counter_index[i] - self._pbars[i].n
+                if step > 0:
+                    self._pbars[i].update(step)
+                elif step < 0:
+                    self._pbars[i].reset(counter_num[i])
+
+                update_next = False
+                if self._pbars[i].n == self._pbars[i].total:
+                    update_next = True
 
     def close(self):
-        self._vbar.close()
+        for vbar in self._vbars:
+            vbar.close()
         for pbar in self._pbars:
             pbar.close()
